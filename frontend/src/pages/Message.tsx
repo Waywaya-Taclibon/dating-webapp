@@ -21,6 +21,7 @@ import { io } from "socket.io-client";
 const socket = io("http://localhost:3001");
 
 interface ChatUser {
+  city: string;
   clerkId: string;
   name: string;
   imageUrl: string | null;
@@ -153,15 +154,14 @@ const MessagePage: React.FC = () => {
       const res = await fetch(`http://localhost:3001/api/messages/${chatId}`);
       const data: MessageData[] = await res.json();
 
-      const formatted = data.map((msg) => ({
-        message: msg.message,
-        sentTime: new Date(msg.timestamp || Date.now()).toLocaleTimeString(),
-        sender: msg.senderId === currentUserId ? "You" : selectedUser?.name || "User",
-        direction: msg.senderId === currentUserId ? "outgoing" : "incoming",
-        position: "single",
-      }));
 
-      setMessages(formatted);
+      setMessages(data.map((msg) => ({
+          message: msg.message,
+          sentTime: new Date(msg.timestamp || Date.now()).toLocaleTimeString(),
+          sender: msg.senderId === currentUserId ? "You" : selectedUser?.name || "User",
+          direction: msg.senderId === currentUserId ? "outgoing" : "incoming",
+          position: "single",
+        })));
     } catch (error) {
       console.error("Error fetching messages:", error);
     }
