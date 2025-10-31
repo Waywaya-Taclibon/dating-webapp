@@ -17,6 +17,12 @@ import Navbar from "./Navbar";
 import { useUser } from "@clerk/clerk-react";
 import { io } from "socket.io-client";
 
+const API_BASE_URL =
+  import.meta.env.MODE === "development"
+    ? "http://localhost:3001"
+    : "https://dating-webapp-backend.vercel.app";
+
+
 // ✅ Connect Socket.IO
 const socket = io(
   import.meta.env.MODE === "development"
@@ -119,7 +125,7 @@ const MessagePage: React.FC = () => {
       if (!currentUserId) return;
       try {
         const res = await fetch(
-          `http://localhost:3001/api/matches/with-last/${currentUserId}`
+          `${API_BASE_URL}/api/matches/with-last/${currentUserId}`
         );
         const data = await res.json();
 
@@ -134,7 +140,7 @@ const MessagePage: React.FC = () => {
           );
         } else {
           const fallback = await fetch(
-            `http://localhost:3001/api/matches/${currentUserId}`
+            `${API_BASE_URL}/api/matches/${currentUserId}`
           );
           const fallbackData = await fallback.json();
           setMatches(
@@ -158,7 +164,7 @@ const MessagePage: React.FC = () => {
     const chatId = [currentUserId, receiverId].sort().join("_");
 
     try {
-      const res = await fetch(`http://localhost:3001/api/messages/${chatId}`);
+      const res = await fetch(`${API_BASE_URL}/api/messages/${chatId}`);
       const data: MessageData[] = await res.json();
 
       setMessages(
@@ -221,7 +227,7 @@ const MessagePage: React.FC = () => {
     });
 
     try {
-      await fetch("http://localhost:3001/api/messages/send", {
+      await fetch(`${API_BASE_URL}/api/messages/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
