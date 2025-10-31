@@ -45,7 +45,7 @@ const MessagePage: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
   const [messages, setMessages] = useState<MessageModel[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ✅ Join user's room when logged in
   useEffect(() => {
@@ -154,14 +154,18 @@ const MessagePage: React.FC = () => {
       const res = await fetch(`http://localhost:3001/api/messages/${chatId}`);
       const data: MessageData[] = await res.json();
 
-
-      setMessages(data.map((msg) => ({
+      setMessages(
+        data.map((msg) => ({
           message: msg.message,
           sentTime: new Date(msg.timestamp || Date.now()).toLocaleTimeString(),
-          sender: msg.senderId === currentUserId ? "You" : selectedUser?.name || "User",
+          sender:
+            msg.senderId === currentUserId
+              ? "You"
+              : selectedUser?.name || "User",
           direction: msg.senderId === currentUserId ? "outgoing" : "incoming",
           position: "single",
-        })));
+        }))
+      );
     } catch (error) {
       console.error("Error fetching messages:", error);
     }
