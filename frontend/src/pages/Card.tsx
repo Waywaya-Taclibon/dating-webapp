@@ -4,7 +4,9 @@ import { X, Heart } from "lucide-react";
 import { useUser } from "@clerk/clerk-react";
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:3001"); // ✅ connect to backend Socket.IO
+const socket = io("https://dopawink.onrender.com", {
+  transports: ["websocket"],
+}); // ✅ connect to backend Socket.IO
 
 interface CardData {
   clerkId: string;
@@ -33,7 +35,7 @@ const SwipeCards = () => {
     const fetchUsers = async () => {
       if (!user) return;
       try {
-        const res = await fetch(`http://localhost:3001/api/discover/${user.id}`);
+        const res = await fetch(`https://dopawink.onrender.com/api/discover/${user.id}`);
         if (!res.ok) throw new Error("Failed to fetch discover users");
         const data = await res.json();
         setCards(data);
@@ -125,7 +127,7 @@ const Card = ({
   const sendSwipe = async (direction: "left" | "right") => {
     const liked = direction === "right";
     try {
-      const res = await fetch("http://localhost:3001/api/swipe", {
+      const res = await fetch("https://dopawink.onrender.com/api/swipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -16,24 +16,26 @@ const app: Express = express();
 const server = createServer(app);
 const port = process.env.PORT || 3001;
 
-// ✅ Determine allowed origins dynamically
+// ✅ Correct CORS Origins
+// ⚠️ Remove trailing slash at the end of URLs – otherwise CORS fails!
 const allowedOrigins = [
-  "http://localhost:5173", // local dev
-  "https://dopawink.vercel.app/", // replace with your actual frontend URL
+  "http://localhost:5173",       // Local dev
+  "https://dopawink.vercel.app", // Production frontend
+  "https://dopawink.onrender.com", // Self-reference (Render backend)
 ];
 
-// ✅ Express CORS setup
+// ✅ Express middleware
 app.use(
   cors({
     origin: allowedOrigins,
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "PATCH", "DELETE"],
     credentials: true,
   })
 );
 
 app.use(express.json());
 
-// ✅ Setup Socket.IO with same CORS config
+// ✅ Setup Socket.IO with the same CORS rules
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
@@ -42,7 +44,7 @@ const io = new Server(server, {
   },
 });
 
-// ✅ MongoDB connection
+// ✅ MongoDB Connection
 const mongoURI = process.env.MONGO_URI!;
 mongoose
   .connect(mongoURI)
@@ -64,7 +66,7 @@ io.on("connection", (socket) => {
 
   socket.on("join_room", (userId: string) => {
     socket.join(userId);
-    console.log(`User ${userId} joined their room`);
+    console.log(`👤 User ${userId} joined their room`);
   });
 
   // ✅ Handle sending messages
@@ -86,7 +88,7 @@ io.on("connection", (socket) => {
       console.error("⚠️ Failed to fetch sender name from Clerk:", error);
     }
 
-    // ✅ Create + emit notification
+    // ✅ Create and emit notification
     const notification = await Notification.create({
       userId: receiverId,
       title: "New Message 💬",
@@ -108,7 +110,7 @@ io.on("connection", (socket) => {
     io.to(receiverId).emit("user_stop_typing", { senderId });
   });
 
-  // ✅ New match notifications
+  // ✅ Match notifications
   socket.on("new_match", async (data: any) => {
     const { userA, userB, userAName, userBName } = data;
 
@@ -135,6 +137,7 @@ io.on("connection", (socket) => {
   });
 });
 
+// ✅ Start the server
 server.listen(port, () => {
   console.log(`✅ Server running on port ${port}`);
 });

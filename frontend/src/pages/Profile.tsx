@@ -23,7 +23,7 @@ const Profile = () => {
   // --- Fetch user's existing profile info from MongoDB ---
   const fetchUserInfo = async (clerkId: string) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/info/${clerkId}`);
+      const response = await fetch(`https://dopawink.onrender.com/api/info/${clerkId}`);
       if (response.ok) {
         const data = await response.json();
         setBio(data.bio || "");
@@ -73,7 +73,7 @@ const Profile = () => {
 
     try {
       setIsSaving(true);
-      const response = await fetch(`http://localhost:3001/api/info/${user.id}`, {
+      const response = await fetch(`https://dopawink.onrender.com/api/info/${user.id}`, {
         method: "PUT", // 👈 matches backend route
         headers: {
           "Content-Type": "application/json",

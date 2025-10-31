@@ -42,7 +42,7 @@ export default function ProfileCompletion(): JSX.Element {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("http://localhost:3001/api/info", {
+      const response = await fetch("https://dopawink.onrender.com/api/info", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -77,7 +77,7 @@ export default function ProfileCompletion(): JSX.Element {
       if (!user) return;
 
       try {
-        const response = await fetch(`http://localhost:3001/api/info/${user.id}`);
+        const response = await fetch(`https://dopawink.onrender.com/api/info/${user.id}`);
         if (response.ok) {
           navigate("/dashboard");
         }

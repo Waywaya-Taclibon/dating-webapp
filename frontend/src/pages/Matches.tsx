@@ -24,7 +24,7 @@ const MatchesPage: React.FC = () => {
     const fetchMatches = async () => {
       if (!currentUserId) return;
       try {
-        const res = await fetch(`http://localhost:3001/api/match-list/${currentUserId}`);
+        const res = await fetch(`https://dopawink.onrender.com/api/match-list/${currentUserId}`);
         const data = await res.json();
         setMatches(data);
       } catch (error) {
@@ -42,7 +42,7 @@ const MatchesPage: React.FC = () => {
     if (!confirmed || !currentUserId) return;
 
     try {
-      await fetch(`http://localhost:3001/api/unmatch`, {
+      await fetch(`https://dopawink.onrender.com/api/unmatch`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: currentUserId, targetId }),
