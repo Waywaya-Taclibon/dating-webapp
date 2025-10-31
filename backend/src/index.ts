@@ -8,7 +8,7 @@ import userRoutes from "./routes/userRoutes";
 import messageRoutes from "./routes/messageRoutes";
 import notificationRoutes from "./routes/notificationRoutes";
 import Notification from "./models/Notification";
-import { clerkClient } from "@clerk/clerk-sdk-node"; // ✅ Clerk import
+import { clerkClient } from "@clerk/clerk-sdk-node";
 
 dotenv.config();
 
@@ -16,16 +16,31 @@ const app: Express = express();
 const server = createServer(app);
 const port = process.env.PORT || 3001;
 
-// ✅ Setup Socket.IO
+// ✅ Determine allowed origins dynamically
+const allowedOrigins = [
+  "http://localhost:5173", // local dev
+  "https://your-frontend-name.vercel.app", // replace with your actual frontend URL
+];
+
+// ✅ Express CORS setup
+app.use(
+  cors({
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true,
+  })
+);
+
+app.use(express.json());
+
+// ✅ Setup Socket.IO with same CORS config
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173", // your React frontend URL
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
+    credentials: true,
   },
 });
-
-app.use(cors());
-app.use(express.json());
 
 // ✅ MongoDB connection
 const mongoURI = process.env.MONGO_URI!;
@@ -63,7 +78,10 @@ io.on("connection", (socket) => {
     let senderName = "Someone";
     try {
       const sender = await clerkClient.users.getUser(senderId);
-      senderName = `${sender.firstName || ""} ${sender.lastName || ""}`.trim() || sender.username || "Someone";
+      senderName =
+        `${sender.firstName || ""} ${sender.lastName || ""}`.trim() ||
+        sender.username ||
+        "Someone";
     } catch (error) {
       console.error("⚠️ Failed to fetch sender name from Clerk:", error);
     }
@@ -79,7 +97,7 @@ io.on("connection", (socket) => {
     io.to(receiverId).emit("new_notification", notification);
   });
 
-  // ✅ Handle typing indicator
+  // ✅ Typing indicator logic
   socket.on("typing", (data: any) => {
     const { receiverId, senderId } = data;
     io.to(receiverId).emit("user_typing", { senderId });
@@ -90,7 +108,7 @@ io.on("connection", (socket) => {
     io.to(receiverId).emit("user_stop_typing", { senderId });
   });
 
-  // ✅ When a new match occurs
+  // ✅ New match notifications
   socket.on("new_match", async (data: any) => {
     const { userA, userB, userAName, userBName } = data;
 
