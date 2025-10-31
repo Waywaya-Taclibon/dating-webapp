@@ -20,14 +20,14 @@ import { io } from "socket.io-client";
 const API_BASE_URL =
   import.meta.env.MODE === "development"
     ? "http://localhost:3001"
-    : "https://dating-webapp-backend.vercel.app";
+    : "https://dopawink.onrender.com";
 
 
 // ✅ Connect Socket.IO
 const socket = io(
   import.meta.env.MODE === "development"
     ? "http://localhost:3001"
-    : "https://dating-webapp-backend.vercel.app/",
+    : "https://dopawink.onrender.com",
   {
     transports: ["websocket"], // helps reduce polling issues on Vercel
   }
