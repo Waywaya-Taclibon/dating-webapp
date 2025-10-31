@@ -1,12 +1,11 @@
 {
-  // Visit https://aka.ms/tsconfig to read more about this file
   "compilerOptions": {
     /* ---------- File Layout ---------- */
     "rootDir": "./src",
     "outDir": "./build",
 
     /* ---------- Environment Settings ---------- */
-    "target": "esnext",
+    "target": "es2019",
     "module": "commonjs",
     "moduleResolution": "node",
     "esModuleInterop": true,
@@ -14,9 +13,9 @@
     "types": ["node"],
 
     /* ---------- Output Options ---------- */
-    "sourceMap": true,
-    "declaration": true,
-    "declarationMap": true,
+    "sourceMap": false,
+    "declaration": false,
+    "removeComments": true,
 
     /* ---------- Type Checking ---------- */
     "strict": true,
@@ -24,13 +23,7 @@
     "exactOptionalPropertyTypes": true,
 
     /* ---------- Performance ---------- */
-    "skipLibCheck": true,
-
-    /* ---------- Optional/Style Options ---------- */
-    // "noImplicitReturns": true,
-    // "noUnusedLocals": true,
-    // "noUnusedParameters": true,
-    // "noFallthroughCasesInSwitch": true
+    "skipLibCheck": true
   },
 
   /* ---------- Include/Exclude ---------- */
