@@ -19,7 +19,7 @@ const port = process.env.PORT || 3001;
 // ✅ Determine allowed origins dynamically
 const allowedOrigins = [
   "http://localhost:5173", // local dev
-  "https://your-frontend-name.vercel.app", // replace with your actual frontend URL
+  "https://dopawink.vercel.app/", // replace with your actual frontend URL
 ];
 
 // ✅ Express CORS setup
