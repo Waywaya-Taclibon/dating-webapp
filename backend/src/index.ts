@@ -14,17 +14,19 @@ dotenv.config();
 
 const app: Express = express();
 const server = createServer(app);
-const port = process.env.PORT || 3001;
 
-// ✅ Correct CORS Origins
-// ⚠️ Remove trailing slash at the end of URLs – otherwise CORS fails!
+// ✅ Use Render’s assigned port (or default to 10000)
+const host = "0.0.0.0";
+const port = process.env.PORT || 10000;
+
+// ✅ Allowed CORS Origins (no trailing slashes!)
 const allowedOrigins = [
-  "http://localhost:5173",       // Local dev
-  "https://dopawink.vercel.app", // Production frontend
-  "https://dopawink.onrender.com", // Self-reference (Render backend)
+  "http://localhost:5173",        // Local dev
+  "https://dopawink.vercel.app",  // Frontend (Vercel)
+  "https://dopawink.onrender.com" // Backend (self-reference)
 ];
 
-// ✅ Express middleware
+// ✅ Apply Express Middleware
 app.use(
   cors({
     origin: allowedOrigins,
@@ -35,27 +37,29 @@ app.use(
 
 app.use(express.json());
 
-// ✅ Setup Socket.IO with the same CORS rules
+// ✅ WebSocket-friendly headers (Render proxy sometimes needs these)
+app.use((req, res, next) => {
+  res.setHeader("Connection", "keep-alive, Upgrade");
+  res.setHeader("Upgrade", "websocket");
+  next();
+});
+
+// ✅ Setup Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: [
-      "http://localhost:5173",
-      "https://dopawink.vercel.app",
-      "https://dopawink.onrender.com"
-    ],
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },
-  transports: ["websocket", "polling"], // ✅ ensures fallback works
-  allowEIO3: true, // ✅ allows older client fallback
+  transports: ["websocket", "polling"], // fallback-safe
+  allowEIO3: true,
 });
 
-// ✅ MongoDB Connection
-const mongoURI = process.env.MONGO_URI!;
+// ✅ Connect to MongoDB
 mongoose
-  .connect(mongoURI)
+  .connect(process.env.MONGO_URI!)
   .then(() => console.log("✅ CONNECTED TO MONGODB!"))
-  .catch((err) => console.error("❌ Failed to connect to MongoDB:", err));
+  .catch((err) => console.error("❌ MongoDB connection failed:", err));
 
 // ✅ Routes
 app.use("/api", userRoutes);
@@ -63,7 +67,7 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/notifications", notificationRoutes);
 
 app.get("/", (req, res) => {
-  res.send("🚀 DopaWink Backend is running!");
+  res.send("🚀 DopaWink Backend is running and ready for WebSockets!");
 });
 
 // 🧠 SOCKET.IO LOGIC
@@ -72,17 +76,17 @@ io.on("connection", (socket) => {
 
   socket.on("join_room", (userId: string) => {
     socket.join(userId);
-    console.log(`👤 User ${userId} joined their room`);
+    console.log(`👤 User ${userId} joined their private room`);
   });
 
-  // ✅ Handle sending messages
+  // ✅ Handle Sending Messages
   socket.on("send_message", async (data: any) => {
     const { senderId, receiverId, message } = data;
-    console.log(`📨 Message sent from ${senderId} to ${receiverId}: ${message}`);
+    console.log(`📨 ${senderId} ➜ ${receiverId}: ${message}`);
 
     io.to(receiverId).emit("receive_message", data);
 
-    // ✅ Fetch sender's name from Clerk
+    // ✅ Fetch sender’s name from Clerk
     let senderName = "Someone";
     try {
       const sender = await clerkClient.users.getUser(senderId);
@@ -90,11 +94,11 @@ io.on("connection", (socket) => {
         `${sender.firstName || ""} ${sender.lastName || ""}`.trim() ||
         sender.username ||
         "Someone";
-    } catch (error) {
-      console.error("⚠️ Failed to fetch sender name from Clerk:", error);
+    } catch (err) {
+      console.error("⚠️ Clerk lookup failed:", err);
     }
 
-    // ✅ Create and emit notification
+    // ✅ Create + emit notification
     const notification = await Notification.create({
       userId: receiverId,
       title: "New Message 💬",
@@ -105,18 +109,16 @@ io.on("connection", (socket) => {
     io.to(receiverId).emit("new_notification", notification);
   });
 
-  // ✅ Typing indicator logic
+  // ✅ Typing Indicator
   socket.on("typing", (data: any) => {
-    const { receiverId, senderId } = data;
-    io.to(receiverId).emit("user_typing", { senderId });
+    io.to(data.receiverId).emit("user_typing", { senderId: data.senderId });
   });
 
   socket.on("stop_typing", (data: any) => {
-    const { receiverId, senderId } = data;
-    io.to(receiverId).emit("user_stop_typing", { senderId });
+    io.to(data.receiverId).emit("user_stop_typing", { senderId: data.senderId });
   });
 
-  // ✅ Match notifications
+  // ✅ Match Notifications
   socket.on("new_match", async (data: any) => {
     const { userA, userB, userAName, userBName } = data;
 
@@ -139,11 +141,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    console.log("🔴 User disconnected:", socket.id);
+    console.log("🔴 Disconnected:", socket.id);
   });
 });
 
-// ✅ Start the server
-server.listen(port, () => {
-  console.log(`✅ Server running on port ${port}`);
+// ✅ Start server
+server.listen(port, host, () => {
+  console.log(`✅ Server listening on http://${host}:${port}`);
 });
