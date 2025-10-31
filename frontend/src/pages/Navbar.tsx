@@ -4,7 +4,9 @@ import { SignedIn, UserButton, useUser } from "@clerk/clerk-react";
 import { io } from "socket.io-client";
 import NotificationModal from "./NotificationModal";
 
-const socket = io("http://localhost:3001"); // 👈 backend URL
+const socket = io("https://dopawink.onrender.com", {
+  transports: ["websocket"],
+});
 
 export default function Navbar() {
   const { user } = useUser();
@@ -28,7 +30,7 @@ export default function Navbar() {
     // Fetch all notifications
     const fetchNotifications = async () => {
       try {
-        const res = await fetch(`http://localhost:3001/api/notifications/${userId}`);
+        const res = await fetch(`https://dopawink.onrender.com/api/notifications/${userId}`);
         const data = await res.json();
         setNotifications(data);
       } catch (error) {
@@ -53,7 +55,7 @@ export default function Navbar() {
     if (!userId) return;
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
 
-    await fetch(`http://localhost:3001/api/notifications/markAll/${userId}`, {
+    await fetch(`https://dopawink.onrender.com/api/notifications/markAll/${userId}`, {
       method: "PATCH",
     });
   };
