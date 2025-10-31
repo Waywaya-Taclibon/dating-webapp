@@ -1,0 +1,39 @@
+{
+  // Visit https://aka.ms/tsconfig to read more about this file
+  "compilerOptions": {
+    /* ---------- File Layout ---------- */
+    "rootDir": "./src",
+    "outDir": "./build",
+
+    /* ---------- Environment Settings ---------- */
+    "target": "esnext",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "types": ["node"],
+
+    /* ---------- Output Options ---------- */
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+
+    /* ---------- Type Checking ---------- */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+
+    /* ---------- Performance ---------- */
+    "skipLibCheck": true,
+
+    /* ---------- Optional/Style Options ---------- */
+    // "noImplicitReturns": true,
+    // "noUnusedLocals": true,
+    // "noUnusedParameters": true,
+    // "noFallthroughCasesInSwitch": true
+  },
+
+  /* ---------- Include/Exclude ---------- */
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "build"]
+}

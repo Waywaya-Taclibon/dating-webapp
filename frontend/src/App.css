@@ -1,0 +1,245 @@
+@import "tailwindcss";
+
+/* === DopaWink Chat Theme === */
+
+/* Chat background */
+.cs-chat-container {
+  background: linear-gradient(to bottom, #fdf2f8, #ffffff) !important;
+}
+
+/* Sidebar background */
+.cs-conversation-list {
+  background: #ffffff !important;
+  border-right: 1px solid #fbcfe8 !important;
+}
+
+/* Conversation items */
+.cs-conversation {
+  border-bottom: 1px solid #fce7f3 !important;
+  transition: all 0.2s ease !important;
+}
+
+.cs-conversation:hover {
+  background: #fdf2f8 !important;
+}
+
+/* Active conversation */
+.cs-conversation.cs-conversation--active {
+  background: linear-gradient(to right, #ec4899, #a855f7) !important;
+}
+
+.cs-conversation--active .cs-conversation__name,
+.cs-conversation--active .cs-conversation__info {
+  color: white !important;
+}
+
+/* === CONVERSATION HEADER - Enhanced Neutral Styling === */
+.cs-conversation-header,
+.cs-conversation-header__content,
+.cs-conversation-header > *,
+div[class*="conversation-header"] {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+}
+
+/* Force remove any blue/cyan tints */
+.cs-conversation-header::before,
+.cs-conversation-header::after {
+  display: none !important;
+}
+
+.cs-conversation-header__user-name,
+.cs-conversation-header .cs-conversation-header__user-name {
+  color: #1f2937 !important;
+  font-weight: 600 !important;
+}
+
+.cs-conversation-header__info,
+.cs-conversation-header .cs-conversation-header__info {
+  color: #6b7280 !important;
+  font-size: 0.875rem !important;
+}
+
+.cs-conversation-header__back,
+.cs-conversation-header__actions {
+  color: #6b7280 !important;
+}
+
+/* === MESSAGE INPUT - Enhanced Neutral Styling === */
+.cs-message-input,
+.cs-message-input__content-editor-wrapper,
+.cs-message-input > *,
+div[class*="message-input"] {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  border-top: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+  padding: 0.75rem 1rem !important;
+}
+
+/* Force remove any blue/cyan tints from input */
+.cs-message-input::before,
+.cs-message-input::after {
+  display: none !important;
+}
+
+.cs-message-input__content-editor,
+.cs-message-input__content-editor-wrapper .cs-message-input__content-editor,
+div[class*="content-editor"] {
+  background: #f9fafb !important;
+  background-color: #f9fafb !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 1.5rem !important;
+  color: #1f2937 !important;
+  padding: 0.625rem 1rem !important;
+}
+
+.cs-message-input__content-editor:focus,
+.cs-message-input__content-editor:focus-visible {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  border-color: #ec4899 !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1) !important;
+}
+
+.cs-message-input__content-editor::placeholder {
+  color: #9ca3af !important;
+}
+
+/* Message input tools */
+.cs-message-input__tools {
+  background: transparent !important;
+}
+
+/* === SEND BUTTON === */
+.cs-button--send,
+.cs-message-input .cs-button--send {
+  background: linear-gradient(to right, #ec4899, #a855f7) !important;
+  background-color: #ec4899 !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 4px 8px rgba(236, 72, 153, 0.3) !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+  padding: 0.5rem 1rem !important;
+}
+
+.cs-button--send:hover,
+.cs-message-input .cs-button--send:hover {
+  background: linear-gradient(to right, #db2777, #9333ea) !important;
+  background-color: #db2777 !important;
+  transform: scale(1.08) !important;
+  box-shadow: 0 6px 12px rgba(236, 72, 153, 0.4) !important;
+}
+
+.cs-button--send:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+/* === MESSAGE BUBBLES === */
+.cs-message--incoming .cs-message__content {
+  background-color: #fbcfe8 !important;
+  color: #1f2937 !important;
+  border-radius: 1rem 1rem 1rem 0.25rem !important;
+  box-shadow: 0 2px 6px rgba(236, 72, 153, 0.1) !important;
+}
+
+.cs-message--outgoing .cs-message__content {
+  background: linear-gradient(to right, #ec4899, #a855f7) !important;
+  color: white !important;
+  border-radius: 1rem 1rem 0.25rem 1rem !important;
+  box-shadow: 0 2px 6px rgba(236, 72, 153, 0.2) !important;
+}
+
+/* Message metadata */
+.cs-message__sent-time {
+  color: #9ca3af !important;
+  font-size: 0.75rem !important;
+}
+
+/* === TYPING INDICATOR === */
+.cs-typing-indicator {
+  background: #fbcfe8 !important;
+  color: #1f2937 !important;
+  padding: 0.5rem 1rem !important;
+  border-radius: 1rem !important;
+}
+
+.cs-typing-indicator__dot {
+  background: #ec4899 !important;
+}
+
+.cs-typing-indicator__text {
+  color: #1f2937 !important;
+}
+
+/* === SCROLLBAR STYLING === */
+.cs-message-list::-webkit-scrollbar,
+.cs-conversation-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.cs-message-list::-webkit-scrollbar-track,
+.cs-conversation-list::-webkit-scrollbar-track {
+  background: #fdf2f8;
+}
+
+.cs-message-list::-webkit-scrollbar-thumb,
+.cs-conversation-list::-webkit-scrollbar-thumb {
+  background: #fbcfe8;
+  border-radius: 3px;
+}
+
+.cs-message-list::-webkit-scrollbar-thumb:hover,
+.cs-conversation-list::-webkit-scrollbar-thumb:hover {
+  background: #f9a8d4;
+}
+
+/* === ADDITIONAL NEUTRAL OVERRIDES === */
+/* Ensure no pink/colored backgrounds leak through */
+.cs-main-container,
+.cs-chat-container > * {
+  background: transparent !important;
+}
+
+/* Avatar styling for consistency */
+.cs-avatar {
+  border: 2px solid #ffffff !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Remove any default colored backgrounds */
+.cs-message-list {
+  background: transparent !important;
+}
+
+/* Ensure message input wrapper is neutral */
+.cs-message-input-container {
+  background: #ffffff !important;
+}
+
+/* === NUCLEAR OPTION: Remove all blue/cyan tints === */
+[class*="cs-"]:not([class*="button"]):not([class*="message__content"]):not([class*="conversation--active"]) {
+  filter: none !important;
+}
+
+/* Force white backgrounds on all chat UI elements except messages */
+.cs-conversation-header,
+.cs-message-input,
+.cs-conversation-list {
+  filter: saturate(0) brightness(1.05) !important;
+  background-color: #ffffff !important;
+}
+
+/* Restore color to important elements */
+.cs-avatar,
+.cs-button--send,
+.cs-message__content,
+.cs-conversation--active,
+.cs-typing-indicator__dot {
+  filter: none !important;
+}
