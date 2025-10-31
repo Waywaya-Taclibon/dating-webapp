@@ -18,7 +18,14 @@ import { useUser } from "@clerk/clerk-react";
 import { io } from "socket.io-client";
 
 // ✅ Connect Socket.IO
-const socket = io("http://localhost:3001");
+const socket = io(
+  import.meta.env.MODE === "development"
+    ? "http://localhost:3001"
+    : "https://dating-webapp-backend.vercel.app/",
+  {
+    transports: ["websocket"], // helps reduce polling issues on Vercel
+  }
+);
 
 interface ChatUser {
   city: string;
