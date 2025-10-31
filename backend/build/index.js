@@ -92,6 +92,7 @@ io.on("connection", (socket) => {
         console.log("🔴 User disconnected:", socket.id);
     });
 });
-server.listen(port, () => {
-    console.log(`✅ Server running on port ${port}`);
+const host = "0.0.0.0"; // ✅ required for Render WebSockets
+server.listen(port, host, () => {
+  console.log(`✅ Server running on ${host}:${port}`);
 });

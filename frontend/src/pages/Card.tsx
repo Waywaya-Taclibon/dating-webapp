@@ -5,8 +5,10 @@ import { useUser } from "@clerk/clerk-react";
 import { io } from "socket.io-client";
 
 const socket = io("https://dopawink.onrender.com", {
-  transports: ["websocket"],
-}); // ✅ connect to backend Socket.IO
+  transports: ["websocket", "polling"], // ✅ enable fallback
+  withCredentials: true,                 // ✅ match backend CORS
+});
+
 
 interface CardData {
   clerkId: string;

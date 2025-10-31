@@ -5,7 +5,8 @@ import { io } from "socket.io-client";
 import NotificationModal from "./NotificationModal";
 
 const socket = io("https://dopawink.onrender.com", {
-  transports: ["websocket"],
+  transports: ["websocket", "polling"], // ✅ enable fallback
+  withCredentials: true,                 // ✅ match backend CORS
 });
 
 export default function Navbar() {

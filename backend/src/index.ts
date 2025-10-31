@@ -38,10 +38,16 @@ app.use(express.json());
 // ✅ Setup Socket.IO with the same CORS rules
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: [
+      "http://localhost:5173",
+      "https://dopawink.vercel.app",
+      "https://dopawink.onrender.com"
+    ],
     methods: ["GET", "POST"],
     credentials: true,
   },
+  transports: ["websocket", "polling"], // ✅ ensures fallback works
+  allowEIO3: true, // ✅ allows older client fallback
 });
 
 // ✅ MongoDB Connection
