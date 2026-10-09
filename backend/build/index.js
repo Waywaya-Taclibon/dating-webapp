@@ -17,43 +17,96 @@ const clerk_sdk_node_1 = require("@clerk/clerk-sdk-node");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const server = (0, http_1.createServer)(app);
-const port = process.env.PORT || 3001;
+const host = "0.0.0.0";
+const port = Number(process.env.PORT) || 10000;
+const allowedOrigins = [
+    "http://localhost:5173",
+    "https://dopawink.vercel.app",
+    "https://dopawink.onrender.com"
+];
+app.use((0, cors_1.default)({
+    origin: allowedOrigins,
+    methods: ["GET", "POST", "PATCH", "DELETE"],
+    credentials: true,
+}));
+app.use(express_1.default.json());
+app.use((req, res, next) => {
+    res.setHeader("Connection", "keep-alive, Upgrade");
+    res.setHeader("Upgrade", "websocket");
+    next();
+});
 const io = new socket_io_1.Server(server, {
     cors: {
-        origin: "http://localhost:5173",
+        origin: allowedOrigins,
         methods: ["GET", "POST"],
+        credentials: true,
     },
+    transports: ["websocket", "polling"],
+    allowEIO3: true,
 });
-app.use((0, cors_1.default)());
-app.use(express_1.default.json());
-const mongoURI = process.env.MONGO_URI;
+const MONGO_URI = process.env.MONGO_URI;
+if (!MONGO_URI) {
+    console.error("❌ MONGO_URI is not defined! Check Render env vars / .env");
+}
+else {
+    console.log("🔌 Connecting with URI:", MONGO_URI.replace(/:\/\/([^:]+):([^@]+)@/, "://$1:<hidden>@"));
+}
+mongoose_1.default.set("bufferTimeoutMS", 10000);
 mongoose_1.default
-    .connect(mongoURI)
+    .connect(MONGO_URI, {
+    dbName: process.env.MONGO_DB_NAME || "dopawink",
+    retryWrites: true,
+    serverSelectionTimeoutMS: 10000,
+})
     .then(() => console.log("✅ CONNECTED TO MONGODB!"))
-    .catch((err) => console.error("❌ Failed to connect to MongoDB:", err));
+    .catch((err) => {
+    console.error("❌ MongoDB connection failed:", (err === null || err === void 0 ? void 0 : err.message) || err);
+    console.error("👉 Check: 1) Atlas cluster unpaused 2) Network Access 0.0.0.0/0 3) DB user password 4) MONGO_URI includes db name");
+});
+mongoose_1.default.connection.on("connected", () => console.log("🟢 Mongoose connected"));
+mongoose_1.default.connection.on("error", (err) => console.error("🔴 Mongoose error:", err));
+mongoose_1.default.connection.on("disconnected", () => console.warn("🟡 Mongoose disconnected"));
 app.use("/api", userRoutes_1.default);
 app.use("/api/messages", messageRoutes_1.default);
 app.use("/api/notifications", notificationRoutes_1.default);
 app.get("/", (req, res) => {
-    res.send("🚀 DopaWink Backend is running!");
+    res.send("🚀 DopaWink Backend is running and ready for WebSockets!");
+});
+app.get("/api/health", (req, res) => {
+    const states = {
+        0: "disconnected",
+        1: "connected",
+        2: "connecting",
+        3: "disconnecting",
+    };
+    res.json({
+        status: "ok",
+        mongoState: states[mongoose_1.default.connection.readyState] || "unknown",
+        mongoReady: mongoose_1.default.connection.readyState === 1,
+        hasMongoUri: !!process.env.MONGO_URI,
+        timestamp: new Date().toISOString(),
+    });
 });
 io.on("connection", (socket) => {
     console.log("🟢 User connected:", socket.id);
     socket.on("join_room", (userId) => {
         socket.join(userId);
-        console.log(`User ${userId} joined their room`);
+        console.log(`👤 User ${userId} joined their private room`);
     });
     socket.on("send_message", async (data) => {
         const { senderId, receiverId, message } = data;
-        console.log(`📨 Message sent from ${senderId} to ${receiverId}: ${message}`);
+        console.log(`📨 ${senderId} ➜ ${receiverId}: ${message}`);
         io.to(receiverId).emit("receive_message", data);
         let senderName = "Someone";
         try {
             const sender = await clerk_sdk_node_1.clerkClient.users.getUser(senderId);
-            senderName = `${sender.firstName || ""} ${sender.lastName || ""}`.trim() || sender.username || "Someone";
+            senderName =
+                `${sender.firstName || ""} ${sender.lastName || ""}`.trim() ||
+                    sender.username ||
+                    "Someone";
         }
-        catch (error) {
-            console.error("⚠️ Failed to fetch sender name from Clerk:", error);
+        catch (err) {
+            console.error("⚠️ Clerk lookup failed:", err);
         }
         const notification = await Notification_1.default.create({
             userId: receiverId,
@@ -64,12 +117,10 @@ io.on("connection", (socket) => {
         io.to(receiverId).emit("new_notification", notification);
     });
     socket.on("typing", (data) => {
-        const { receiverId, senderId } = data;
-        io.to(receiverId).emit("user_typing", { senderId });
+        io.to(data.receiverId).emit("user_typing", { senderId: data.senderId });
     });
     socket.on("stop_typing", (data) => {
-        const { receiverId, senderId } = data;
-        io.to(receiverId).emit("user_stop_typing", { senderId });
+        io.to(data.receiverId).emit("user_stop_typing", { senderId: data.senderId });
     });
     socket.on("new_match", async (data) => {
         const { userA, userB, userAName, userBName } = data;
@@ -89,10 +140,9 @@ io.on("connection", (socket) => {
         io.to(userB).emit("new_notification", notifB);
     });
     socket.on("disconnect", () => {
-        console.log("🔴 User disconnected:", socket.id);
+        console.log("🔴 Disconnected:", socket.id);
     });
 });
-const host = "0.0.0.0"; // ✅ required for Render WebSockets
 server.listen(port, host, () => {
-  console.log(`✅ Server running on ${host}:${port}`);
+    console.log(`✅ Server listening on http://${host}:${port}`);
 });

@@ -17,7 +17,7 @@ const server = createServer(app);
 
 // ✅ Use Render’s assigned port (or default to 10000)
 const host = "0.0.0.0";
-const port = process.env.PORT || 10000;
+const port = Number(process.env.PORT) || 10000;
 
 // ✅ Allowed CORS Origins (no trailing slashes!)
 const allowedOrigins = [
@@ -56,10 +56,31 @@ const io = new Server(server, {
 });
 
 // ✅ Connect to MongoDB
+const MONGO_URI = process.env.MONGO_URI;
+if (!MONGO_URI) {
+  console.error("❌ MONGO_URI is not defined! Check Render env vars / .env");
+} else {
+  // Mask password for safe logging
+  console.log("🔌 Connecting with URI:", MONGO_URI.replace(/:\/\/([^:]+):([^@]+)@/, "://$1:<hidden>@"));
+}
+
+mongoose.set("bufferTimeoutMS", 10000);
+
 mongoose
-  .connect(process.env.MONGO_URI!)
+  .connect(MONGO_URI as string, {
+    dbName: process.env.MONGO_DB_NAME || "dopawink",
+    retryWrites: true,
+    serverSelectionTimeoutMS: 10000,
+  })
   .then(() => console.log("✅ CONNECTED TO MONGODB!"))
-  .catch((err) => console.error("❌ MongoDB connection failed:", err));
+  .catch((err) => {
+    console.error("❌ MongoDB connection failed:", err?.message || err);
+    console.error("👉 Check: 1) Atlas cluster unpaused 2) Network Access 0.0.0.0/0 3) DB user password 4) MONGO_URI includes db name");
+  });
+
+mongoose.connection.on("connected", () => console.log("🟢 Mongoose connected"));
+mongoose.connection.on("error", (err) => console.error("🔴 Mongoose error:", err));
+mongoose.connection.on("disconnected", () => console.warn("🟡 Mongoose disconnected"));
 
 // ✅ Routes
 app.use("/api", userRoutes);
@@ -68,6 +89,23 @@ app.use("/api/notifications", notificationRoutes);
 
 app.get("/", (req, res) => {
   res.send("🚀 DopaWink Backend is running and ready for WebSockets!");
+});
+
+// ✅ Health check — use this to verify DB on Render: GET /api/health
+app.get("/api/health", (req, res) => {
+  const states: Record<number, string> = {
+    0: "disconnected",
+    1: "connected",
+    2: "connecting",
+    3: "disconnecting",
+  };
+  res.json({
+    status: "ok",
+    mongoState: states[mongoose.connection.readyState] || "unknown",
+    mongoReady: mongoose.connection.readyState === 1,
+    hasMongoUri: !!process.env.MONGO_URI,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // 🧠 SOCKET.IO LOGIC
