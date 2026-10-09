@@ -9,4 +9,7 @@ const notificationSchema = new mongoose.Schema({
   type: { type: String, enum: ["match", "message", "system"], default: "system" },
 });
 
+notificationSchema.index({ userId: 1, time: -1 });
+notificationSchema.index({ userId: 1, read: 1 });
+
 export default mongoose.model("Notification", notificationSchema);

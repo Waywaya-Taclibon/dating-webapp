@@ -24,4 +24,9 @@ const UserInfoSchema = new Schema<IUserInfo>({
   matches: { type: [String], default: [] },
 });
 
+// Indexes for discover ($nin) + match-list ($in) lookups
+UserInfoSchema.index({ likedUsers: 1 });
+UserInfoSchema.index({ passedUsers: 1 });
+UserInfoSchema.index({ matches: 1 });
+
 export default mongoose.model<IUserInfo>("UserInfo", UserInfoSchema);

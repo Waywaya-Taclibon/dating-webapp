@@ -8,7 +8,9 @@ import userRoutes from "./routes/userRoutes";
 import messageRoutes from "./routes/messageRoutes";
 import notificationRoutes from "./routes/notificationRoutes";
 import Notification from "./models/Notification";
+import Message from "./models/Message";
 import { clerkClient } from "@clerk/clerk-sdk-node";
+import { requireAuthMiddleware } from "./middleware/requireAuth";
 
 dotenv.config();
 
@@ -19,30 +21,23 @@ const server = createServer(app);
 const host = "0.0.0.0";
 const port = Number(process.env.PORT) || 10000;
 
-// ✅ Allowed CORS Origins (no trailing slashes!)
+// ✅ Allowed CORS Origins (no trailing slashes!) — extend via FRONTEND_URL env
 const allowedOrigins = [
-  "http://localhost:5173",        // Local dev
-  "https://dopawink.vercel.app",  // Frontend (Vercel)
-  "https://dopawink.onrender.com" // Backend (self-reference)
+  "http://localhost:5173", // Local dev
+  "https://dopawink.vercel.app", // Frontend (Vercel)
+  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
 ];
 
 // ✅ Apply Express Middleware
 app.use(
   cors({
     origin: allowedOrigins,
-    methods: ["GET", "POST", "PATCH", "DELETE"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     credentials: true,
   })
 );
 
-app.use(express.json());
-
-// ✅ WebSocket-friendly headers (Render proxy sometimes needs these)
-app.use((req, res, next) => {
-  res.setHeader("Connection", "keep-alive, Upgrade");
-  res.setHeader("Upgrade", "websocket");
-  next();
-});
+app.use(express.json({ limit: "100kb" }));
 
 // ✅ Setup Socket.IO
 const io = new Server(server, {
@@ -86,16 +81,7 @@ mongoose.connection.on("connected", () => console.log("🟢 Mongoose connected")
 mongoose.connection.on("error", (err) => console.error("🔴 Mongoose error:", err));
 mongoose.connection.on("disconnected", () => console.warn("🟡 Mongoose disconnected"));
 
-// ✅ Routes
-app.use("/api", userRoutes);
-app.use("/api/messages", messageRoutes);
-app.use("/api/notifications", notificationRoutes);
-
-app.get("/", (req, res) => {
-  res.send("🚀 DopaWink Backend is running and ready for WebSockets!");
-});
-
-// ✅ Health check — use this to verify DB on Render: GET /api/health
+// ✅ Public health check — must be BEFORE auth middleware
 app.get("/api/health", (req, res) => {
   const states: Record<number, string> = {
     0: "disconnected",
@@ -107,79 +93,142 @@ app.get("/api/health", (req, res) => {
     status: "ok",
     mongoState: states[mongoose.connection.readyState] || "unknown",
     mongoReady: mongoose.connection.readyState === 1,
-    hasMongoUri: !!process.env.MONGO_URI,
     timestamp: new Date().toISOString(),
   });
 });
 
-// 🧠 SOCKET.IO LOGIC
+// ✅ Routes — all /api routes require a valid Clerk session JWT
+app.use("/api", requireAuthMiddleware, userRoutes);
+app.use("/api/messages", requireAuthMiddleware, messageRoutes);
+app.use("/api/notifications", requireAuthMiddleware, notificationRoutes);
+
+app.get("/", (req, res) => {
+  res.send("🚀 DopaWink Backend is running and ready for WebSockets!");
+});
+
+// 🧠 SOCKET.IO LOGIC — authenticated via Clerk session token
+// Client must connect with: io(url, { auth: { token: await getToken() } })
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth?.token as string | undefined;
+    if (!token) return next(new Error("Unauthorized: missing token"));
+    const claims: any = await clerkClient.verifyToken(token);
+    const userId = claims?.sub || claims?.userId;
+    if (!userId) return next(new Error("Unauthorized: invalid token"));
+    socket.data.userId = userId as string;
+    next();
+  } catch (err) {
+    console.error("❌ Socket auth failed:", (err as Error)?.message || err);
+    next(new Error("Unauthorized"));
+  }
+});
+
 io.on("connection", (socket) => {
-  console.log("🟢 User connected:", socket.id);
+  const authId = socket.data.userId as string;
+  console.log("🟢 User connected:", socket.id, "as", authId);
 
   socket.on("join_room", (userId: string) => {
+    // Only allow joining your own room — prevents eavesdropping
+    if (userId !== authId) {
+      console.warn(`⛔ ${authId} tried to join room ${userId}`);
+      return;
+    }
     socket.join(userId);
     console.log(`👤 User ${userId} joined their private room`);
   });
 
-  // ✅ Handle Sending Messages
+  // ✅ Handle Sending Messages — persist first, then emit (single source of truth)
   socket.on("send_message", async (data: any) => {
-    const { senderId, receiverId, message } = data;
-    console.log(`📨 ${senderId} ➜ ${receiverId}: ${message}`);
-
-    io.to(receiverId).emit("receive_message", data);
-
-    // ✅ Fetch sender’s name from Clerk
-    let senderName = "Someone";
     try {
-      const sender = await clerkClient.users.getUser(senderId);
-      senderName =
-        `${sender.firstName || ""} ${sender.lastName || ""}`.trim() ||
-        sender.username ||
-        "Someone";
+      const { receiverId, message } = data || {};
+      const senderId = authId; // never trust client senderId
+      if (!receiverId || typeof message !== "string" || !message.trim()) return;
+      if (message.length > 2000) return;
+
+      const chatId = [senderId, receiverId].sort().join("_");
+      const saved = await Message.create({
+        chatId,
+        senderId,
+        receiverId,
+        message: message.trim(),
+      });
+
+      const payload = {
+        _id: saved._id,
+        chatId,
+        senderId,
+        receiverId,
+        message: saved.message,
+        timestamp: saved.get("timestamp"),
+      };
+      io.to(receiverId).emit("receive_message", payload);
+      // echo back to sender so all devices stay in sync
+      socket.emit("receive_message", payload);
+
+      // ✅ Fetch sender's name from Clerk (non-fatal)
+      let senderName = "Someone";
+      try {
+        const sender = await clerkClient.users.getUser(senderId);
+        senderName =
+          `${sender.firstName || ""} ${sender.lastName || ""}`.trim() ||
+          sender.username ||
+          "Someone";
+      } catch (err) {
+        console.error("⚠️ Clerk lookup failed:", err);
+      }
+
+      // ✅ Create + emit notification
+      const notification = await Notification.create({
+        userId: receiverId,
+        title: "New Message 💬",
+        message: `You have a new message from ${senderName}`,
+        type: "message",
+      });
+
+      io.to(receiverId).emit("new_notification", notification);
     } catch (err) {
-      console.error("⚠️ Clerk lookup failed:", err);
+      console.error("❌ send_message failed:", err);
+      socket.emit("send_message_error", { message: "Failed to send message" });
     }
-
-    // ✅ Create + emit notification
-    const notification = await Notification.create({
-      userId: receiverId,
-      title: "New Message 💬",
-      message: `You have a new message from ${senderName}`,
-      type: "message",
-    });
-
-    io.to(receiverId).emit("new_notification", notification);
   });
 
-  // ✅ Typing Indicator
+  // ✅ Typing Indicator — sender is always the authed user
   socket.on("typing", (data: any) => {
-    io.to(data.receiverId).emit("user_typing", { senderId: data.senderId });
+    if (!data?.receiverId) return;
+    io.to(data.receiverId).emit("user_typing", { senderId: authId });
   });
 
   socket.on("stop_typing", (data: any) => {
-    io.to(data.receiverId).emit("user_stop_typing", { senderId: data.senderId });
+    if (!data?.receiverId) return;
+    io.to(data.receiverId).emit("user_stop_typing", { senderId: authId });
   });
 
   // ✅ Match Notifications
   socket.on("new_match", async (data: any) => {
-    const { userA, userB, userAName, userBName } = data;
+    try {
+      const { userB, userAName, userBName } = data || {};
+      const userA = authId; // caller must be a participant
+      if (!userB || userB === userA) return;
 
-    const notifA = await Notification.create({
-      userId: userA,
-      title: "It's a Match! 💖",
-      message: `You matched with ${userBName}!`,
-      type: "match",
-    });
+      const notifA = await Notification.create({
+        userId: userA,
+        title: "It's a Match! 💖",
+        message: `You matched with ${String(userBName || "someone").slice(0, 100)}!`,
+        type: "match",
+      });
 
-    const notifB = await Notification.create({
-      userId: userB,
-      title: "It's a Match! 💖",
-      message: `You matched with ${userAName}!`,
-      type: "match",
-    });
+      const notifB = await Notification.create({
+        userId: userB,
+        title: "It's a Match! 💖",
+        message: `You matched with ${String(userAName || "someone").slice(0, 100)}!`,
+        type: "match",
+      });
 
-    io.to(userA).emit("new_notification", notifA);
-    io.to(userB).emit("new_notification", notifB);
+      io.to(userA).emit("new_notification", notifA);
+      io.to(userB).emit("new_notification", notifB);
+    } catch (err) {
+      console.error("❌ new_match failed:", err);
+    }
   });
 
   socket.on("disconnect", () => {
