@@ -68,7 +68,11 @@ mongoose.set("bufferTimeoutMS", 10000);
 
 mongoose
   .connect(MONGO_URI as string, {
-    dbName: process.env.MONGO_DB_NAME || "dopawink",
+    // Use MONGO_DB_NAME if set, otherwise use whatever db is in the URI.
+    // Your old data is in `test`, so keep default as `test` — don't use "dopawink".
+    ...(process.env.MONGO_DB_NAME
+      ? { dbName: process.env.MONGO_DB_NAME }
+      : {}),
     retryWrites: true,
     serverSelectionTimeoutMS: 10000,
   })

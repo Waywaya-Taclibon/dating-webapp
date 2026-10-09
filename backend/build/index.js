@@ -54,7 +54,9 @@ else {
 mongoose_1.default.set("bufferTimeoutMS", 10000);
 mongoose_1.default
     .connect(MONGO_URI, {
-    dbName: process.env.MONGO_DB_NAME || "dopawink",
+    ...(process.env.MONGO_DB_NAME
+        ? { dbName: process.env.MONGO_DB_NAME }
+        : {}),
     retryWrites: true,
     serverSelectionTimeoutMS: 10000,
 })
