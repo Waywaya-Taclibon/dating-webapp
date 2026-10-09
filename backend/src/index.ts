@@ -102,6 +102,20 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// ✅ Keep-warm ping — public, for external cron (e.g. cron-job.org every ~12 min).
+// Unlike /api/health, this issues a REAL DB round-trip (admin ping) so both
+// Render (no spin-down) and Atlas M0 (no auto-pause) stay warm.
+// Deliberately NOT behind auth/strict rate-limit: it's cheap and unauthenticated by design.
+app.get("/api/ping", apiLimiter, async (_req, res) => {
+  try {
+    await mongoose.connection.db?.admin().ping();
+    res.json({ status: "ok", pong: true, timestamp: new Date().toISOString() });
+  } catch (err) {
+    console.error("❌ /api/ping DB ping failed:", (err as Error)?.message || err);
+    res.status(503).json({ status: "degraded", pong: false });
+  }
+});
+
 // ✅ Routes — all /api routes require a valid Clerk session JWT
 // Strict throttle first (must run before routers), then general throttle + auth.
 app.use("/api/swipe", writeLimiter);

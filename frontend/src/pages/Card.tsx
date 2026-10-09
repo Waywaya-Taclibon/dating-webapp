@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 import { X, Heart } from "lucide-react";
 import { useUser, useAuth } from "@clerk/clerk-react";
-import { authFetch, authGet } from "../lib/api";
+import { authFetch, authGet, ServerWakingUpError } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { useToast } from "../lib/toast";
 
@@ -27,6 +27,7 @@ interface CardProps extends CardData {
 const SwipeCards = () => {
   const { user } = useUser();
   const { getToken } = useAuth();
+  const toast = useToast();
   const [cards, setCards] = useState<CardData[]>([]);
   const swipeDirection = useRef<"left" | "right" | null>(null);
 
@@ -39,10 +40,13 @@ const SwipeCards = () => {
         setCards(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error("Error fetching discoverable users:", err);
+        if (err instanceof ServerWakingUpError) {
+          toast.info("Server is waking up — give it a moment, then refresh.");
+        }
       }
     };
     fetchUsers();
-  }, [user, getToken]);
+  }, [user, getToken, toast]);
 
   const handleSwipe = (direction: "left" | "right") => {
     swipeDirection.current = direction;

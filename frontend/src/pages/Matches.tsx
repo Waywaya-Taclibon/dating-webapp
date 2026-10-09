@@ -3,7 +3,7 @@ import Navbar from "./Navbar";
 import { Heart, MessageCircle, X } from "lucide-react";
 import { useUser, useAuth } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
-import { authFetch, authGet } from "../lib/api";
+import { authFetch, authGet, ServerWakingUpError } from "../lib/api";
 import { useToast } from "../lib/toast";
 
 interface Match {
@@ -36,6 +36,9 @@ const MatchesPage: React.FC = () => {
         setMatches(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error("Error fetching matches:", error);
+        if (error instanceof ServerWakingUpError) {
+          toast.info("Server is waking up — give it a moment, then refresh.");
+        }
       } finally {
         setLoading(false);
       }
