@@ -1,7 +1,9 @@
 import { useState, useEffect, type ChangeEvent, type JSX } from "react";
 import { Camera, MapPin, User, Calendar } from "lucide-react";
-import { useUser } from "@clerk/clerk-react";
+import { useUser, useAuth } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
+import { authFetch, authGet } from "../../lib/api";
+import { useToast } from "../../lib/toast";
 
 interface FormData {
   age: string;
@@ -21,7 +23,9 @@ export default function ProfileCompletion(): JSX.Element {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const { user } = useUser();
+  const { getToken } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
 
   const handleInputChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -35,20 +39,17 @@ export default function ProfileCompletion(): JSX.Element {
 
   const handleSubmit = async (): Promise<void> => {
     if (!user) {
-      alert("User not found. Please log in again.");
+      toast.error("User not found. Please log in again.");
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("https://dopawink.onrender.com/api/info", {
+      // Identity comes from the Clerk JWT — no clerkId in body
+      const response = await authFetch(getToken, "/api/info", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({
-          clerkId: user.id,
           age: Number(formData.age),
           gender: formData.gender,
           city: formData.city,
@@ -57,15 +58,15 @@ export default function ProfileCompletion(): JSX.Element {
       });
 
       if (response.ok) {
-        alert("Profile saved successfully!");
+        toast.success("Profile saved successfully!");
         navigate("/dashboard");
       } else {
         const errorData = await response.json();
-        alert(`Failed to save profile: ${errorData.message || "Unknown error"}`);
+        toast.error(`Failed to save profile: ${errorData.message || "Unknown error"}`);
       }
     } catch (error) {
       console.error("Error submitting profile:", error);
-      alert("A network or server error occurred!");
+      toast.error("A network or server error occurred!");
     } finally {
       setIsSubmitting(false);
     }
@@ -77,17 +78,15 @@ export default function ProfileCompletion(): JSX.Element {
       if (!user) return;
 
       try {
-        const response = await fetch(`https://dopawink.onrender.com/api/info/${user.id}`);
-        if (response.ok) {
-          navigate("/dashboard");
-        }
-      } catch (error) {
-        console.error("Error checking profile:", error);
+        await authGet(getToken, `/api/info/${user.id}`);
+        navigate("/dashboard");
+      } catch {
+        // No profile yet — stay on completion page
       }
     };
 
     checkExistingProfile();
-  }, [user, navigate]);
+  }, [user, getToken, navigate]);
 
   // 📸 Handle Clerk profile image upload
   const handleProfileImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -98,10 +97,10 @@ export default function ProfileCompletion(): JSX.Element {
       setIsUploadingImage(true);
       await user.setProfileImage({ file });
       await user.reload(); // Refresh to get new image URL
-      alert("Profile picture updated!");
+      toast.success("Profile picture updated!");
     } catch (err) {
       console.error("Failed to upload profile image:", err);
-      alert("Error uploading profile picture!");
+      toast.error("Error uploading profile picture!");
     } finally {
       setIsUploadingImage(false);
     }
@@ -166,27 +165,32 @@ export default function ProfileCompletion(): JSX.Element {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Age */}
               <div>
-                <label className="block text-sm font-medium text-gray-800 mb-2">
+                <label htmlFor="age" className="block text-sm font-medium text-gray-800 mb-2">
                   <Calendar className="w-4 h-4 inline mr-2 text-pink-500" />
                   Age
                 </label>
                 <input
+                  id="age"
                   type="number"
                   name="age"
+                  min={18}
+                  max={120}
                   value={formData.age}
                   onChange={handleInputChange}
                   placeholder="Enter your age"
+                  autoComplete="off"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all"
                 />
               </div>
 
               {/* Gender */}
               <div>
-                <label className="block text-sm font-medium text-gray-800 mb-2">
+                <label htmlFor="gender" className="block text-sm font-medium text-gray-800 mb-2">
                   <User className="w-4 h-4 inline mr-2 text-pink-500" />
                   Gender
                 </label>
                 <select
+                  id="gender"
                   name="gender"
                   value={formData.gender}
                   onChange={handleInputChange}
@@ -203,30 +207,35 @@ export default function ProfileCompletion(): JSX.Element {
 
             {/* City */}
             <div>
-              <label className="block text-sm font-medium text-gray-800 mb-2">
+              <label htmlFor="city" className="block text-sm font-medium text-gray-800 mb-2">
                 <MapPin className="w-4 h-4 inline mr-2 text-pink-500" />
                 City
               </label>
               <input
+                id="city"
                 type="text"
                 name="city"
+                maxLength={100}
                 value={formData.city}
                 onChange={handleInputChange}
                 placeholder="Enter your city"
+                autoComplete="address-level2"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all"
               />
             </div>
 
             {/* Bio */}
             <div>
-              <label className="block text-sm font-medium text-gray-800 mb-2">
+              <label htmlFor="bio" className="block text-sm font-medium text-gray-800 mb-2">
                 Bio
               </label>
               <textarea
+                id="bio"
                 name="bio"
                 value={formData.bio}
                 onChange={handleInputChange}
                 placeholder="Tell us a bit about yourself..."
+                maxLength={1000}
                 rows={4}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all resize-none"
               />

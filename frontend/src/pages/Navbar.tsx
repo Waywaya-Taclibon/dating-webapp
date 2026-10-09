@@ -1,16 +1,13 @@
 import { useEffect, useState } from "react";
 import { Menu, X, Bell } from "lucide-react";
-import { SignedIn, UserButton, useUser } from "@clerk/clerk-react";
-import { io } from "socket.io-client";
+import { SignedIn, UserButton, useUser, useAuth } from "@clerk/clerk-react";
 import NotificationModal from "./NotificationModal";
-
-const socket = io("https://dopawink.onrender.com", {
-  transports: ["websocket", "polling"], // ✅ enable fallback
-  withCredentials: true,                 // ✅ match backend CORS
-});
+import { authFetch, authGet } from "../lib/api";
+import { getSocket } from "../lib/socket";
 
 export default function Navbar() {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const userId = user?.id;
 
   const [isOpen, setIsOpen] = useState(false);
@@ -25,15 +22,16 @@ export default function Navbar() {
   useEffect(() => {
     if (!userId) return;
 
-    // Join user’s room
-    socket.emit("join_room", userId);
+    const socket = getSocket(getToken, userId);
+
+    // Normalize backend (_id) → modal (id) shape
+    const normalize = (n: any) => ({ ...n, id: n.id || n._id, _id: n._id || n.id });
 
     // Fetch all notifications
     const fetchNotifications = async () => {
       try {
-        const res = await fetch(`https://dopawink.onrender.com/api/notifications/${userId}`);
-        const data = await res.json();
-        setNotifications(data);
+        const data = await authGet<any[]>(getToken, `/api/notifications/${userId}`);
+        setNotifications(Array.isArray(data) ? data.map(normalize) : []);
       } catch (error) {
         console.error("Error fetching notifications:", error);
       }
@@ -43,31 +41,44 @@ export default function Navbar() {
 
     // Listen for live notifications
     socket.on("new_notification", (notif) => {
-      setNotifications((prev) => [notif, ...prev]); // prepend new one
+      setNotifications((prev) => [normalize(notif), ...prev]); // prepend new one
     });
 
     return () => {
       socket.off("new_notification");
     };
-  }, [userId]);
+  }, [userId, getToken]);
 
-  // ✅ Mark all as read
+  // ✅ Mark all as read (explicit action from the modal — not on open,
+  // so the unread dot stays visible until the user actually reads)
   const handleMarkAllAsRead = async () => {
     if (!userId) return;
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
 
-    await fetch(`https://dopawink.onrender.com/api/notifications/markAll/${userId}`, {
-      method: "PATCH",
-    });
+    try {
+      await authFetch(getToken, `/api/notifications/markAll/${userId}`, {
+        method: "PATCH",
+      });
+    } catch (error) {
+      console.error("Error marking all as read:", error);
+    }
   };
 
-  // ✅ Handle bell click — opens modal and marks all as read
-  const handleBellClick = async () => {
-    const newState = !showNotifications;
-    setShowNotifications(newState);
-    if (!showNotifications && unreadCount > 0) {
-      await handleMarkAllAsRead();
+  // ✅ Mark a single notification as read
+  const handleMarkAsRead = async (id: string) => {
+    setNotifications((prev) => prev.map((n) => (n._id === id || n.id === id ? { ...n, read: true } : n)));
+    try {
+      await authFetch(getToken, `/api/notifications/${id}/read`, {
+        method: "PATCH",
+      });
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
     }
+  };
+
+  // ✅ Handle bell click — just toggles the modal
+  const handleBellClick = () => {
+    setShowNotifications((prev) => !prev);
   };
 
   const navItems = [
@@ -177,8 +188,8 @@ export default function Navbar() {
         isOpen={showNotifications}
         onClose={() => setShowNotifications(false)}
         notifications={notifications}
-        onMarkAsRead={() => {}} // not needed anymore
-        onMarkAllAsRead={() => {}} // disabled
+        onMarkAsRead={handleMarkAsRead}
+        onMarkAllAsRead={handleMarkAllAsRead}
       />
     </>
   );

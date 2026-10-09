@@ -1,9 +1,15 @@
 import express from "express";
 import UserInfo from "../models/UserInfo";
-import { clerkClient } from "@clerk/clerk-sdk-node";
 import Message from "../models/Message";
 import Notification from "../models/Notification";
 import { enforceSelf, getAuthId } from "../middleware/requireAuth";
+import { getClerkProfiles } from "../lib/clerkUsers";
+
+function parseLimit(value: unknown, def = 20, max = 50): number {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1) return def;
+  return Math.min(n, max);
+}
 
 const router = express.Router();
 
@@ -126,39 +132,30 @@ router.get("/discover/:clerkId", async (req, res) => {
       ...(currentUser.passedUsers || []),
     ];
 
+    // Paginated — ?limit=1..50 (default 20). Frontend loads more as you swipe.
+    const limit = parseLimit(req.query.limit);
     const discoverable = await UserInfo.find({
       clerkId: { $nin: excludedIds },
-    });
+    })
+      .limit(limit)
+      .lean();
 
-    // 🔥 Enrich each MongoDB user with Clerk info (name + image)
-    const enrichedUsers = await Promise.all(
-      discoverable.map(async (user) => {
-        try {
-          const clerkUser = await clerkClient.users.getUser(user.clerkId);
-          return {
-            clerkId: user.clerkId,
-            name: `${clerkUser.firstName || ""} ${
-              clerkUser.lastName || ""
-            }`.trim(),
-            imageUrl: clerkUser.imageUrl,
-            age: user.age,
-            gender: user.gender,
-            city: user.city,
-            bio: user.bio,
-          };
-        } catch (err) {
-          return {
-            clerkId: user.clerkId,
-            name: "Unknown",
-            imageUrl: null,
-            age: user.age,
-            gender: user.gender,
-            city: user.city,
-            bio: user.bio,
-          };
-        }
-      })
+    // 🔥 One batched + cached Clerk call for the whole page (no N+1)
+    const profiles = await getClerkProfiles(
+      discoverable.map((u) => u.clerkId)
     );
+    const enrichedUsers = discoverable.map((user) => {
+      const p = profiles.get(user.clerkId) || { name: "Unknown", imageUrl: null };
+      return {
+        clerkId: user.clerkId,
+        name: p.name,
+        imageUrl: p.imageUrl,
+        age: user.age,
+        gender: user.gender,
+        city: user.city,
+        bio: user.bio,
+      };
+    });
 
     res.status(200).json(enrichedUsers);
   } catch (error) {
@@ -234,39 +231,29 @@ router.get("/matches/:clerkId", async (req, res) => {
     const user = await UserInfo.findOne({ clerkId: req.params.clerkId });
     if (!user) return res.status(404).json({ message: "User not found" });
 
+    const limit = parseLimit(req.query.limit, 50, 100);
     const matchedUsers = await UserInfo.find({
       clerkId: { $in: user.matches },
-    });
+    })
+      .limit(limit)
+      .lean();
 
-    // Enrich matches with Clerk info
-    const enrichedMatches = await Promise.all(
-      matchedUsers.map(async (match) => {
-        try {
-          const clerkUser = await clerkClient.users.getUser(match.clerkId);
-          return {
-            clerkId: match.clerkId,
-            name: `${clerkUser.firstName || ""} ${
-              clerkUser.lastName || ""
-            }`.trim(),
-            imageUrl: clerkUser.imageUrl,
-            age: match.age,
-            gender: match.gender,
-            city: match.city,
-            bio: match.bio,
-          };
-        } catch (err) {
-          return {
-            clerkId: match.clerkId,
-            name: "Unknown",
-            imageUrl: null,
-            age: match.age,
-            gender: match.gender,
-            city: match.city,
-            bio: match.bio,
-          };
-        }
-      })
+    // One batched + cached Clerk call (no N+1)
+    const profiles = await getClerkProfiles(
+      matchedUsers.map((m) => m.clerkId)
     );
+    const enrichedMatches = matchedUsers.map((match) => {
+      const p = profiles.get(match.clerkId) || { name: "Unknown", imageUrl: null };
+      return {
+        clerkId: match.clerkId,
+        name: p.name,
+        imageUrl: p.imageUrl,
+        age: match.age,
+        gender: match.gender,
+        city: match.city,
+        bio: match.bio,
+      };
+    });
 
     res.status(200).json(enrichedMatches);
   } catch (error) {
@@ -281,45 +268,39 @@ router.get("/matches/with-last/:clerkId", async (req, res) => {
     const user = await UserInfo.findOne({ clerkId: req.params.clerkId });
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // ✅ Find all matched users
+    // ✅ Find all matched users (bounded)
+    const limit = parseLimit(req.query.limit, 50, 100);
     const matchedUsers = await UserInfo.find({
       clerkId: { $in: user.matches },
-    });
+    })
+      .limit(limit)
+      .lean();
 
-    // ✅ For each matched user, get the latest message
-    const enrichedMatches = await Promise.all(
-      matchedUsers.map(async (match) => {
-        try {
-          const chatId = [req.params.clerkId, match.clerkId].sort().join("_");
-
-          // Find the most recent message between both users
-          const lastMessage = await Message.findOne({ chatId })
-            .sort({ timestamp: -1 })
-            .limit(1);
-
-          const clerkUser = await clerkClient.users.getUser(match.clerkId);
-
-          return {
-            clerkId: match.clerkId,
-            name: `${clerkUser.firstName || ""} ${clerkUser.lastName || ""}`.trim(),
-            imageUrl: clerkUser.imageUrl,
-            city: match.city,
-            lastMessage: lastMessage?.message || "Tap to chat",
-            lastSenderId: lastMessage?.senderId || null,
-            timestamp: lastMessage?.timestamp || null,
-          };
-        } catch (err) {
-          return {
-            clerkId: match.clerkId,
-            name: "Unknown",
-            imageUrl: null,
-            lastMessage: "Tap to chat",
-            lastSenderId: null,
-            timestamp: null,
-          };
-        }
+    // One batched Clerk call + parallel last-message lookups (indexed)
+    const profiles = await getClerkProfiles(
+      matchedUsers.map((m) => m.clerkId)
+    );
+    const lastMessages = await Promise.all(
+      matchedUsers.map((match) => {
+        const chatId = [req.params.clerkId, match.clerkId].sort().join("_");
+        return Message.findOne({ chatId })
+          .sort({ timestamp: -1 })
+          .lean();
       })
     );
+    const enrichedMatches = matchedUsers.map((match, i) => {
+      const p = profiles.get(match.clerkId) || { name: "Unknown", imageUrl: null };
+      const lastMessage = lastMessages[i];
+      return {
+        clerkId: match.clerkId,
+        name: p.name,
+        imageUrl: p.imageUrl,
+        city: match.city,
+        lastMessage: lastMessage?.message || "Tap to chat",
+        lastSenderId: lastMessage?.senderId || null,
+        timestamp: lastMessage?.timestamp || null,
+      };
+    });
 
     res.status(200).json(enrichedMatches);
   } catch (error) {
@@ -336,36 +317,28 @@ router.get("/match-list/:clerkId", async (req, res) => {
     const user = await UserInfo.findOne({ clerkId: req.params.clerkId });
     if (!user) return res.status(404).json({ message: "User not found" });
 
+    const limit = parseLimit(req.query.limit, 50, 100);
     const matchedUsers = await UserInfo.find({
       clerkId: { $in: user.matches },
-    });
+    })
+      .limit(limit)
+      .lean();
 
-    const enrichedMatches = await Promise.all(
-      matchedUsers.map(async (match) => {
-        try {
-          const clerkUser = await clerkClient.users.getUser(match.clerkId);
-          return {
-            clerkId: match.clerkId,
-            name: `${clerkUser.firstName || ""} ${clerkUser.lastName || ""}`.trim(),
-            imageUrl: clerkUser.imageUrl,
-            age: match.age,
-            gender: match.gender,
-            city: match.city,
-            bio: match.bio,
-          };
-        } catch {
-          return {
-            clerkId: match.clerkId,
-            name: "Unknown",
-            imageUrl: null,
-            age: match.age,
-            gender: match.gender,
-            city: match.city,
-            bio: match.bio,
-          };
-        }
-      })
+    const profiles = await getClerkProfiles(
+      matchedUsers.map((m) => m.clerkId)
     );
+    const enrichedMatches = matchedUsers.map((match) => {
+      const p = profiles.get(match.clerkId) || { name: "Unknown", imageUrl: null };
+      return {
+        clerkId: match.clerkId,
+        name: p.name,
+        imageUrl: p.imageUrl,
+        age: match.age,
+        gender: match.gender,
+        city: match.city,
+        bio: match.bio,
+      };
+    });
 
     res.status(200).json(enrichedMatches);
   } catch (error) {

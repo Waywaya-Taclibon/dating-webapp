@@ -1,9 +1,13 @@
-import { useUser } from "@clerk/clerk-react";
+import { useUser, useAuth } from "@clerk/clerk-react";
 import Navbar from "./Navbar";
 import { useState, useEffect } from "react";
+import { authFetch } from "../lib/api";
+import { useToast } from "../lib/toast";
 
 const Profile = () => {
   const { user, isLoaded } = useUser();
+  const { getToken } = useAuth();
+  const toast = useToast();
 
   const [bio, setBio] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -23,7 +27,11 @@ const Profile = () => {
   // --- Fetch user's existing profile info from MongoDB ---
   const fetchUserInfo = async (clerkId: string) => {
     try {
-      const response = await fetch(`https://dopawink.onrender.com/api/info/${clerkId}`);
+      const token = await getToken();
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || "https://dopawink.onrender.com"}/api/info/${clerkId}`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
       if (response.ok) {
         const data = await response.json();
         setBio(data.bio || "");
@@ -39,15 +47,19 @@ const Profile = () => {
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length || !user) return;
     const file = e.target.files[0];
-    setPreview(URL.createObjectURL(file));
+    const objectUrl = URL.createObjectURL(file);
+    setPreview(objectUrl);
 
     try {
       setIsSaving(true);
       await user.setProfileImage({ file });
       await user.reload();
+      toast.success("Profile picture updated!");
     } catch (error) {
       console.error("Error updating profile image:", error);
+      toast.error("Error updating profile picture!");
     } finally {
+      URL.revokeObjectURL(objectUrl);
       setIsSaving(false);
     }
   };
@@ -59,9 +71,10 @@ const Profile = () => {
       setIsSaving(true);
       await user.update({ firstName, lastName });
       await user.reload();
-      alert("Profile updated successfully!");
+      toast.success("Profile updated successfully!");
     } catch (error) {
       console.error("Error updating name:", error);
+      toast.error("Failed to update name.");
     } finally {
       setIsSaving(false);
     }
@@ -73,23 +86,20 @@ const Profile = () => {
 
     try {
       setIsSaving(true);
-      const response = await fetch(`https://dopawink.onrender.com/api/info/${user.id}`, {
+      const response = await authFetch(getToken, `/api/info/${user.id}`, {
         method: "PUT", // 👈 matches backend route
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({ bio }), // send only bio for now
       });
 
       if (response.ok) {
-        alert("Bio updated successfully!");
+        toast.success("Bio updated successfully!");
       } else {
         const err = await response.json();
-        alert(`Failed to update bio: ${err.message || "Unknown error"}`);
+        toast.error(`Failed to update bio: ${err.message || "Unknown error"}`);
       }
     } catch (error) {
       console.error("Error saving bio:", error);
-      alert("A network or server error occurred!");
+      toast.error("A network or server error occurred!");
     } finally {
       setIsSaving(false);
     }
@@ -132,18 +142,28 @@ const Profile = () => {
 
         {/* Editable Name Fields */}
         <div className="flex flex-col md:flex-row gap-3 mb-4">
+          <label htmlFor="firstName" className="sr-only">
+            First Name
+          </label>
           <input
+            id="firstName"
             type="text"
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
             placeholder="First Name"
+            autoComplete="given-name"
             className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-400"
           />
+          <label htmlFor="lastName" className="sr-only">
+            Last Name
+          </label>
           <input
+            id="lastName"
             type="text"
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
             placeholder="Last Name"
+            autoComplete="family-name"
             className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-400"
           />
         </div>
@@ -165,10 +185,15 @@ const Profile = () => {
 
         {/* Bio Section */}
         <div className="mt-6 w-full max-w-md">
+          <label htmlFor="bio" className="sr-only">
+            Bio
+          </label>
           <textarea
+            id="bio"
             value={bio}
             onChange={(e) => setBio(e.target.value)}
             placeholder="Write something about yourself..."
+            maxLength={1000}
             className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-pink-400"
             rows={4}
           ></textarea>

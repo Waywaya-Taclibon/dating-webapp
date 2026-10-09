@@ -3,8 +3,11 @@ services:
     name: dopawink-backend
     env: node
     plan: free
+    # IMPORTANT: in the Render dashboard, set Root Directory = backend
+    # so these commands run inside backend/ (where package.json lives).
     buildCommand: npm install && npm run build
     startCommand: node build/index.js
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
@@ -12,14 +15,6 @@ services:
         sync: false
       - key: CLERK_SECRET_KEY
         sync: false
+      - key: FRONTEND_URL
+        sync: false
     autoDeploy: true
-    # ✅ allow websocket traffic through render proxy
-    allowDeployOnPendingBuild: true
-    envSpecific:
-      - key: PORT
-        value: 10000
-    headers:
-      - key: Connection
-        value: Upgrade
-      - key: Upgrade
-        value: websocket

@@ -1,0 +1,18 @@
+# Secrets — NEVER commit these
+backend/.env
+backend/.env.*
+!backend/.env.example
+frontend/.env.local
+frontend/.env.*.local
+
+# Deps / build output
+**/node_modules/
+backend/build/
+frontend/dist/
+frontend/dist-ssr/
+
+# Logs / OS
+logs
+*.log
+.DS_Store
+*.suo

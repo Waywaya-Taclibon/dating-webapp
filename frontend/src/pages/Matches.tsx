@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
 import Navbar from "./Navbar";
 import { Heart, MessageCircle, X } from "lucide-react";
-import { useUser } from "@clerk/clerk-react";
+import { useUser, useAuth } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
+import { authFetch, authGet } from "../lib/api";
+import { useToast } from "../lib/toast";
 
 interface Match {
   clerkId: string;
@@ -14,19 +16,24 @@ interface Match {
 
 const MatchesPage: React.FC = () => {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const currentUserId = user?.id;
   const navigate = useNavigate();
+  const toast = useToast();
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirmTarget, setConfirmTarget] = useState<Match | null>(null);
 
   // ✅ Fetch matches from backend
   useEffect(() => {
     const fetchMatches = async () => {
-      if (!currentUserId) return;
+      if (!currentUserId) {
+        setLoading(false);
+        return;
+      }
       try {
-        const res = await fetch(`https://dopawink.onrender.com/api/match-list/${currentUserId}`);
-        const data = await res.json();
-        setMatches(data);
+        const data = await authGet<Match[]>(getToken, `/api/match-list/${currentUserId}`);
+        setMatches(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error("Error fetching matches:", error);
       } finally {
@@ -34,23 +41,26 @@ const MatchesPage: React.FC = () => {
       }
     };
     fetchMatches();
-  }, [currentUserId]);
+  }, [currentUserId, getToken]);
 
-  // ✅ Unmatch a user
-  const handleUnmatch = async (targetId: string) => {
-    const confirmed = window.confirm("Are you sure you want to unmatch?");
-    if (!confirmed || !currentUserId) return;
-
+  // ✅ Unmatch a user (inline confirm dialog, no window.confirm)
+  const handleUnmatch = async () => {
+    if (!confirmTarget || !currentUserId) return;
+    const targetId = confirmTarget.clerkId;
     try {
-      await fetch(`https://dopawink.onrender.com/api/unmatch`, {
+      // userId comes from JWT server-side — only send targetId
+      const res = await authFetch(getToken, `/api/unmatch`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: currentUserId, targetId }),
+        body: JSON.stringify({ targetId }),
       });
-
+      if (!res.ok) throw new Error(`Unmatch failed (${res.status})`);
       setMatches((prev) => prev.filter((m) => m.clerkId !== targetId));
+      toast.success(`Unmatched ${confirmTarget.name}.`);
     } catch (error) {
       console.error("Error unmatching:", error);
+      toast.error("Could not unmatch. Try again.");
+    } finally {
+      setConfirmTarget(null);
     }
   };
 
@@ -113,13 +123,17 @@ const MatchesPage: React.FC = () => {
                   <img
                     src={match.imageUrl || "https://placehold.co/300x300"}
                     alt={match.name}
+                    loading="lazy"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = "https://placehold.co/300x300";
+                    }}
                     className="w-full h-72 object-cover"
                   />
                   <div className="absolute top-4 right-4">
                     <button
-                      onClick={() => handleUnmatch(match.clerkId)}
+                      onClick={() => setConfirmTarget(match)}
                       className="bg-white/90 backdrop-blur-md p-2 rounded-full hover:bg-pink-100 transition-colors duration-200 shadow-md"
-                      aria-label="Unmatch"
+                      aria-label={`Unmatch ${match.name}`}
                     >
                       <X className="w-5 h-5 text-pink-500" />
                     </button>
@@ -150,6 +164,43 @@ const MatchesPage: React.FC = () => {
           </div>
         )}
       </main>
+
+      {/* Inline unmatch confirmation (no window.confirm) */}
+      {confirmTarget && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/30 z-40"
+            onClick={() => setConfirmTarget(null)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Confirm unmatch"
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-2xl p-6 w-80 max-w-[calc(100vw-2rem)] border border-pink-100"
+          >
+            <h2 className="text-lg font-semibold text-gray-800 mb-2">
+              Unmatch {confirmTarget.name}?
+            </h2>
+            <p className="text-sm text-gray-500 mb-5">
+              You'll both be removed from each other's matches. This can't be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmTarget(null)}
+                className="flex-1 py-2 border-2 border-gray-200 text-gray-600 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+              >
+                Keep
+              </button>
+              <button
+                onClick={handleUnmatch}
+                className="flex-1 py-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white rounded-xl font-semibold hover:from-pink-600 hover:to-pink-700 transition-all"
+              >
+                Unmatch
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

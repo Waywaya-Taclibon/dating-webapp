@@ -11,6 +11,8 @@ import Notification from "./models/Notification";
 import Message from "./models/Message";
 import { clerkClient } from "@clerk/clerk-sdk-node";
 import { requireAuthMiddleware } from "./middleware/requireAuth";
+import { applySecurityHeaders, apiLimiter, writeLimiter } from "./lib/security";
+import { getClerkProfile } from "./lib/clerkUsers";
 
 dotenv.config();
 
@@ -38,6 +40,9 @@ app.use(
 );
 
 app.use(express.json({ limit: "100kb" }));
+
+// ✅ Security headers + throttling (trust proxy set inside for Render)
+applySecurityHeaders(app);
 
 // ✅ Setup Socket.IO
 const io = new Server(server, {
@@ -98,9 +103,13 @@ app.get("/api/health", (req, res) => {
 });
 
 // ✅ Routes — all /api routes require a valid Clerk session JWT
-app.use("/api", requireAuthMiddleware, userRoutes);
-app.use("/api/messages", requireAuthMiddleware, messageRoutes);
-app.use("/api/notifications", requireAuthMiddleware, notificationRoutes);
+// Strict throttle first (must run before routers), then general throttle + auth.
+app.use("/api/swipe", writeLimiter);
+app.use("/api/messages/send", writeLimiter);
+app.use("/api/reset/state", writeLimiter);
+app.use("/api", apiLimiter, requireAuthMiddleware, userRoutes);
+app.use("/api/messages", apiLimiter, requireAuthMiddleware, messageRoutes);
+app.use("/api/notifications", apiLimiter, requireAuthMiddleware, notificationRoutes);
 
 app.get("/", (req, res) => {
   res.send("🚀 DopaWink Backend is running and ready for WebSockets!");
@@ -165,17 +174,8 @@ io.on("connection", (socket) => {
       // echo back to sender so all devices stay in sync
       socket.emit("receive_message", payload);
 
-      // ✅ Fetch sender's name from Clerk (non-fatal)
-      let senderName = "Someone";
-      try {
-        const sender = await clerkClient.users.getUser(senderId);
-        senderName =
-          `${sender.firstName || ""} ${sender.lastName || ""}`.trim() ||
-          sender.username ||
-          "Someone";
-      } catch (err) {
-        console.error("⚠️ Clerk lookup failed:", err);
-      }
+      // ✅ Sender name via cached batch lookup (non-fatal)
+      const { name: senderName } = await getClerkProfile(senderId);
 
       // ✅ Create + emit notification
       const notification = await Notification.create({

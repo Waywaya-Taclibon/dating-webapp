@@ -1,13 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 import { X, Heart } from "lucide-react";
-import { useUser } from "@clerk/clerk-react";
-import { io } from "socket.io-client";
-
-const socket = io("https://dopawink.onrender.com", {
-  transports: ["websocket", "polling"], // ✅ enable fallback
-  withCredentials: true,                 // ✅ match backend CORS
-});
+import { useUser, useAuth } from "@clerk/clerk-react";
+import { authFetch, authGet } from "../lib/api";
+import { getSocket } from "../lib/socket";
+import { useToast } from "../lib/toast";
 
 
 interface CardData {
@@ -29,6 +26,7 @@ interface CardProps extends CardData {
 
 const SwipeCards = () => {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const [cards, setCards] = useState<CardData[]>([]);
   const swipeDirection = useRef<"left" | "right" | null>(null);
 
@@ -37,16 +35,14 @@ const SwipeCards = () => {
     const fetchUsers = async () => {
       if (!user) return;
       try {
-        const res = await fetch(`https://dopawink.onrender.com/api/discover/${user.id}`);
-        if (!res.ok) throw new Error("Failed to fetch discover users");
-        const data = await res.json();
-        setCards(data);
+        const data = await authGet<CardData[]>(getToken, `/api/discover/${user.id}`);
+        setCards(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error("Error fetching discoverable users:", err);
       }
     };
     fetchUsers();
-  }, [user]);
+  }, [user, getToken]);
 
   const handleSwipe = (direction: "left" | "right") => {
     swipeDirection.current = direction;
@@ -90,12 +86,14 @@ const SwipeCards = () => {
       <div className="flex gap-6 pb-2">
         <button
           onClick={() => handleSwipe("left")}
+          aria-label="Pass"
           className="bg-white border-2 border-pink-500 text-pink-500 p-3 rounded-full shadow-md hover:bg-pink-100 transition-transform transform hover:scale-110"
         >
           <X className="w-7 h-7" />
         </button>
         <button
           onClick={() => handleSwipe("right")}
+          aria-label="Like"
           className="bg-pink-500 text-white p-3 rounded-full shadow-md hover:bg-pink-600 transition-transform transform hover:scale-110"
         >
           <Heart className="w-7 h-7" />
@@ -119,9 +117,18 @@ const Card = ({
   currentUserId,
 }: CardProps) => {
   const { user } = useUser();
+  const { getToken } = useAuth();
+  const toast = useToast();
   const x = useMotionValue(0);
+  const swipedRef = useRef(false);
   const isFront = clerkId === cards[cards.length - 1]?.clerkId;
-  const offset = isFront ? 0 : Math.random() > 0.5 ? 6 : -6;
+  // Stable per-card tilt (no jitter across re-renders)
+  const offset = useMemo(() => {
+    if (!clerkId) return 0;
+    let hash = 0;
+    for (let i = 0; i < clerkId.length; i++) hash = (hash * 31 + clerkId.charCodeAt(i)) | 0;
+    return hash % 2 === 0 ? 6 : -6;
+  }, [clerkId]);
   const rotate = useTransform(x, [-150, 150], [-18 + offset, 18 + offset]);
   const opacity = useTransform(x, [-150, 0, 150], [0, 1, 0]);
 
@@ -129,11 +136,10 @@ const Card = ({
   const sendSwipe = async (direction: "left" | "right") => {
     const liked = direction === "right";
     try {
-      const res = await fetch("https://dopawink.onrender.com/api/swipe", {
+      // `from` comes from JWT server-side — only send target + liked
+      const res = await authFetch(getToken, "/api/swipe", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          from: currentUserId,
           to: clerkId,
           liked,
         }),
@@ -143,11 +149,10 @@ const Card = ({
 
       // ✅ If both liked → It's a match!
       if (data.match) {
-        alert("🎉 It's a match!");
+        toast.success(`🎉 It's a match with ${name || "someone"}!`);
 
         // 🔔 Emit "new_match" event to backend for notifications
-        socket.emit("new_match", {
-          userA: currentUserId,
+        getSocket(getToken, currentUserId).emit("new_match", {
           userB: clerkId,
           userAName: user?.fullName || "Someone",
           userBName: name || "Someone",
@@ -159,6 +164,9 @@ const Card = ({
   };
 
   const triggerSwipe = (direction: "left" | "right") => {
+    // Guard: one swipe per card (StrictMode + drag/button double-trigger safe)
+    if (swipedRef.current) return;
+    swipedRef.current = true;
     const dirValue = direction === "right" ? 600 : -600;
     animate(x, dirValue, {
       type: "tween",
@@ -167,14 +175,18 @@ const Card = ({
       onComplete: async () => {
         await sendSwipe(direction);
         setCards((prev) => prev.filter((v) => v.clerkId !== clerkId));
-        swipeDirection!.current = null;
+        if (swipeDirection) swipeDirection.current = null;
       },
     });
   };
 
-  if (isFront && swipeDirection?.current) {
-    triggerSwipe(swipeDirection.current);
-  }
+  // Button-driven swipes run as an effect, not during render
+  useEffect(() => {
+    if (isFront && swipeDirection?.current && !swipedRef.current) {
+      triggerSwipe(swipeDirection.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFront, swipeDirection?.current]);
 
   const handleDragEnd = () => {
     const distance = x.get();
@@ -209,6 +221,11 @@ const Card = ({
           "https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png"
         }
         alt={name || "User"}
+        loading="lazy"
+        onError={(e) => {
+          (e.target as HTMLImageElement).src =
+            "https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png";
+        }}
         className="h-full w-full object-cover absolute inset-0"
       />
 

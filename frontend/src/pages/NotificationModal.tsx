@@ -1,6 +1,8 @@
+import { useEffect } from "react";
 import { X } from "lucide-react";
 
 interface Notification {
+  _id?: string;
   id: string;
   title: string;
   message: string;
@@ -13,7 +15,7 @@ interface NotificationModalProps {
   onClose: () => void;
   notifications: Notification[];
   onMarkAsRead: (id: string) => void;
-  onMarkAllAsRead: () => void; // still accepted for compatibility
+  onMarkAllAsRead: () => void;
 }
 
 export default function NotificationModal({
@@ -21,28 +23,53 @@ export default function NotificationModal({
   onClose,
   notifications,
   onMarkAsRead,
+  onMarkAllAsRead,
 }: NotificationModalProps) {
+  // Close on Escape
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-opacity-100 z-40 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/30 z-40 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Modal */}
-      <div className="fixed top-20 right-4 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-2xl z-50 max-h-[80vh] flex flex-col border border-pink-100">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Notifications"
+        className="fixed top-20 right-4 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-2xl z-50 max-h-[80vh] flex flex-col border border-pink-100"
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-pink-100 bg-gradient-to-r from-pink-500 to-purple-500 rounded-t-xl">
           <h2 className="text-xl font-semibold text-white">Notifications</h2>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
-          >
-            <X className="w-5 h-5 text-white" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onMarkAllAsRead}
+              className="px-2 py-1 text-xs font-semibold text-white bg-white/20 hover:bg-white/30 rounded-full transition-colors"
+            >
+              Mark all read
+            </button>
+            <button
+              onClick={onClose}
+              aria-label="Close notifications"
+              className="p-1 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
+          </div>
         </div>
 
         {/* Notifications list */}

@@ -1,5 +1,6 @@
 import SwipeCards from "./Card";
 import Navbar from "./Navbar";
+import DevResetButton from "../lib/DevResetButton";
 
 const Discover = () => {
   return (
@@ -16,6 +17,8 @@ const Discover = () => {
           <div className="flex-1 w-full max-w-md flex flex-col min-h-0">
             <SwipeCards />
           </div>
+          {/* Hidden dev reset — reveal via Inspect Element → #dev-reset-state */}
+          <DevResetButton />
         </div>
       </main>
     </div>

@@ -14,24 +14,10 @@ import {
 } from "@chatscope/chat-ui-kit-react";
 import "@chatscope/chat-ui-kit-styles/dist/default/styles.min.css";
 import Navbar from "./Navbar";
-import { useUser } from "@clerk/clerk-react";
-import { io } from "socket.io-client";
-
-const API_BASE_URL =
-  import.meta.env.MODE === "development"
-    ? "http://localhost:3001"
-    : "https://dopawink.onrender.com";
-
-
-// ✅ Connect Socket.IO
-const socket = io(
-  import.meta.env.MODE === "development"
-    ? "http://localhost:3001"
-    : "https://dopawink.onrender.com",
-  {
-    transports: ["websocket"], // helps reduce polling issues on Vercel
-  }
-);
+import { useUser, useAuth } from "@clerk/clerk-react";
+import { useSearchParams } from "react-router-dom";
+import { authGet } from "../lib/api";
+import { getSocket } from "../lib/socket";
 
 interface ChatUser {
   city: string;
@@ -53,6 +39,7 @@ interface MessageData {
 
 const MessagePage: React.FC = () => {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const currentUserId = user?.id;
   const [matches, setMatches] = useState<ChatUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
@@ -60,12 +47,11 @@ const MessagePage: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ✅ Join user's room when logged in
+  // ✅ Join user's room when logged in (authenticated socket singleton)
   useEffect(() => {
-    if (currentUserId) {
-      socket.emit("join_room", currentUserId);
-      console.log(`Joined room for user: ${currentUserId}`);
-    }
+    if (!currentUserId) return;
+    const socket = getSocket(getToken, currentUserId);
+    socket.emit("join_room", currentUserId);
 
     // ✅ Listen for new messages
     socket.on("receive_message", (data: MessageData) => {
@@ -117,38 +103,42 @@ const MessagePage: React.FC = () => {
       socket.off("user_typing");
       socket.off("user_stop_typing");
     };
-  }, [currentUserId, selectedUser]);
+  }, [currentUserId, selectedUser, getToken]);
 
-  // ✅ Fetch matches + their last messages
+  const [searchParams] = useSearchParams();
+  const deepLinkedChat = searchParams.get("chat");
+
+  // ✅ Fetch matches + their last messages (honors ?chat=<clerkId> deep-link)
   useEffect(() => {
     const fetchMatchesWithLastMessages = async () => {
       if (!currentUserId) return;
       try {
-        const res = await fetch(
-          `${API_BASE_URL}/api/matches/with-last/${currentUserId}`
-        );
-        const data = await res.json();
+        const data = await authGet<ChatUser[]>(getToken, `/api/matches/with-last/${currentUserId}`);
 
+        let list: ChatUser[];
         // ✅ If backend doesn't have that endpoint, fallback to normal matches
         if (Array.isArray(data) && data.length > 0) {
-          setMatches(
-            data.sort(
-              (a: ChatUser, b: ChatUser) =>
-                new Date(b.timestamp || 0).getTime() -
-                new Date(a.timestamp || 0).getTime()
-            )
+          list = data.sort(
+            (a: ChatUser, b: ChatUser) =>
+              new Date(b.timestamp || 0).getTime() -
+              new Date(a.timestamp || 0).getTime()
           );
         } else {
-          const fallback = await fetch(
-            `${API_BASE_URL}/api/matches/${currentUserId}`
-          );
-          const fallbackData = await fallback.json();
-          setMatches(
-            fallbackData.map((u: ChatUser) => ({
-              ...u,
-              lastMessage: "Tap to chat",
-            }))
-          );
+          const fallbackData = await authGet<ChatUser[]>(getToken, `/api/matches/${currentUserId}`);
+          list = fallbackData.map((u: ChatUser) => ({
+            ...u,
+            lastMessage: "Tap to chat",
+          }));
+        }
+        setMatches(list);
+
+        // Auto-open the deep-linked chat from Matches ("Go to Message")
+        if (deepLinkedChat) {
+          const target = list.find((u) => u.clerkId === deepLinkedChat);
+          if (target) {
+            setSelectedUser(target);
+            fetchMessages(target.clerkId);
+          }
         }
       } catch (error) {
         console.error("Error fetching matches:", error);
@@ -156,7 +146,8 @@ const MessagePage: React.FC = () => {
     };
 
     fetchMatchesWithLastMessages();
-  }, [currentUserId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId, getToken]);
 
   // ✅ Fetch chat messages
   const fetchMessages = async (receiverId: string) => {
@@ -164,8 +155,7 @@ const MessagePage: React.FC = () => {
     const chatId = [currentUserId, receiverId].sort().join("_");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/messages/${chatId}`);
-      const data: MessageData[] = await res.json();
+      const data = await authGet<MessageData[]>(getToken, `/api/messages/${chatId}`);
 
       setMessages(
         data.map((msg) => ({
@@ -187,24 +177,24 @@ const MessagePage: React.FC = () => {
   // ✅ Handle typing
   const handleTyping = () => {
     if (!selectedUser || !currentUserId) return;
+    const socket = getSocket(getToken, currentUserId);
 
     socket.emit("typing", {
-      senderId: currentUserId,
       receiverId: selectedUser.clerkId,
     });
 
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       socket.emit("stop_typing", {
-        senderId: currentUserId,
         receiverId: selectedUser.clerkId,
       });
     }, 1000);
   };
 
-  // ✅ Send message
+  // ✅ Send message — socket persists server-side (single path, no duplicate REST)
   const handleSend = async (message: string) => {
     if (!selectedUser || !currentUserId) return;
+    const socket = getSocket(getToken, currentUserId);
 
     const newMsg: MessageModel = {
       message,
@@ -216,29 +206,13 @@ const MessagePage: React.FC = () => {
     setMessages((prev) => [...prev, newMsg]);
 
     socket.emit("send_message", {
-      senderId: currentUserId,
       receiverId: selectedUser.clerkId,
       message,
     });
 
     socket.emit("stop_typing", {
-      senderId: currentUserId,
       receiverId: selectedUser.clerkId,
     });
-
-    try {
-      await fetch(`${API_BASE_URL}/api/messages/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          senderId: currentUserId,
-          receiverId: selectedUser.clerkId,
-          message,
-        }),
-      });
-    } catch (error) {
-      console.error("Error sending message:", error);
-    }
 
     // ✅ Instantly update preview in sidebar
     setMatches((prev) => {
