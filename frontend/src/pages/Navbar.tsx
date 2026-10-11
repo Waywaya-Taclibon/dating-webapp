@@ -5,7 +5,7 @@ import NotificationModal from "./NotificationModal";
 import { authFetch, authGet } from "../lib/api";
 import { getSocket } from "../lib/socket";
 
-export default function Navbar() {
+export default function Navbar({ disabled = false }: { disabled?: boolean }) {
   const { user } = useUser();
   const { getToken } = useAuth();
   const userId = user?.id;
@@ -90,7 +90,12 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 shadow-md z-50 bg-white">
+      <nav
+        aria-disabled={disabled || undefined}
+        className={`fixed top-0 left-0 right-0 shadow-md z-50 bg-white ${
+          disabled ? "pointer-events-none opacity-60" : ""
+        }`}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Logo/Title */}
@@ -116,7 +121,9 @@ export default function Navbar() {
               {/* Notification Bell */}
               <button
                 onClick={handleBellClick}
-                className="relative p-2 text-gray-700 hover:text-pink-500 transition-colors duration-200"
+                disabled={disabled}
+                aria-label="Notifications"
+                className="relative p-2 text-gray-700 hover:text-pink-500 transition-colors duration-200 disabled:opacity-50"
               >
                 <Bell className="w-6 h-6" />
                 {unreadCount > 0 && (
@@ -136,7 +143,9 @@ export default function Navbar() {
               {/* Mobile Notification Bell */}
               <button
                 onClick={handleBellClick}
-                className="relative p-2 text-gray-700 hover:text-pink-500 transition-colors duration-200"
+                disabled={disabled}
+                aria-label="Notifications"
+                className="relative p-2 text-gray-700 hover:text-pink-500 transition-colors duration-200 disabled:opacity-50"
               >
                 <Bell className="w-6 h-6" />
                 {unreadCount > 0 && (
@@ -148,7 +157,8 @@ export default function Navbar() {
 
               <button
                 onClick={toggleMenu}
-                className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-pink-500 hover:bg-pink-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-pink-500"
+                disabled={disabled}
+                className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-pink-500 hover:bg-pink-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-pink-500 disabled:opacity-50"
                 aria-expanded={isOpen}
               >
                 <span className="sr-only">Open main menu</span>

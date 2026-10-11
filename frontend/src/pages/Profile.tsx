@@ -3,7 +3,7 @@ import Navbar from "./Navbar";
 import { useState, useEffect } from "react";
 import { authFetch } from "../lib/api";
 import { useToast } from "../lib/toast";
-import LoadingScreen from "../lib/LoadingScreen";
+import { ContentLoader } from "../lib/LoadingScreen";
 
 const Profile = () => {
   const { user, isLoaded } = useUser();
@@ -106,14 +106,15 @@ const Profile = () => {
     }
   };
 
-  if (!isLoaded) {
-    return <LoadingScreen message="Loading profile…" />;
-  }
-
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-pink-50 to-white">
-      <Navbar />
+      <Navbar disabled={!isLoaded} />
 
+      {!isLoaded ? (
+        <div className="flex flex-1 flex-col pt-20 px-6">
+          <ContentLoader message="Loading profile…" />
+        </div>
+      ) : (
       <div className="flex flex-1 flex-col items-center justify-center pt-20 px-6 text-center">
         {/* Profile Picture */}
         <div className="relative mb-4">
@@ -204,6 +205,7 @@ const Profile = () => {
           </button>
         </div>
       </div>
+      )}
     </div>
   );
 };

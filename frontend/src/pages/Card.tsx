@@ -5,7 +5,7 @@ import { useUser, useAuth } from "@clerk/clerk-react";
 import { authFetch, authGet, ServerWakingUpError } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { useToast } from "../lib/toast";
-import LoadingScreen from "../lib/LoadingScreen";
+import { ContentLoader } from "../lib/LoadingScreen";
 
 
 interface CardData {
@@ -25,7 +25,7 @@ interface CardProps extends CardData {
   currentUserId: string;
 }
 
-const SwipeCards = () => {
+const SwipeCards = ({ onLoadingChange }: { onLoadingChange?: (loading: boolean) => void } = {}) => {
   const { user } = useUser();
   const { getToken } = useAuth();
   const toast = useToast();
@@ -38,6 +38,7 @@ const SwipeCards = () => {
     const fetchUsers = async () => {
       if (!user) {
         setLoading(false);
+        onLoadingChange?.(false);
         return;
       }
       try {
@@ -50,10 +51,11 @@ const SwipeCards = () => {
         }
       } finally {
         setLoading(false);
+        onLoadingChange?.(false);
       }
     };
     fetchUsers();
-  }, [user, getToken, toast]);
+  }, [user, getToken, toast, onLoadingChange]);
 
   const handleSwipe = (direction: "left" | "right") => {
     swipeDirection.current = direction;
@@ -69,7 +71,7 @@ const SwipeCards = () => {
   }
 
   if (loading) {
-    return <LoadingScreen message="Finding people…" fullScreen={false} />;
+    return <ContentLoader message="Finding people…" />;
   }
 
   return (

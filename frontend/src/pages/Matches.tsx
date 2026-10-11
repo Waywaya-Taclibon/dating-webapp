@@ -5,7 +5,7 @@ import { useUser, useAuth } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
 import { authFetch, authGet, ServerWakingUpError } from "../lib/api";
 import { useToast } from "../lib/toast";
-import LoadingScreen from "../lib/LoadingScreen";
+import { ContentLoader } from "../lib/LoadingScreen";
 
 interface Match {
   clerkId: string;
@@ -73,15 +73,16 @@ const MatchesPage: React.FC = () => {
     navigate(`/messages?chat=${targetId}`);
   };
 
-  if (loading) {
-    return <LoadingScreen message="Loading matches…" />;
-  }
-
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-pink-50 to-white overflow-hidden">
-      <Navbar />
+      <Navbar disabled={loading} />
 
-      <main className="flex-1 pt-20 pb-8 px-4 max-w-7xl mx-auto">
+      <main className="flex-1 pt-20 pb-8 px-4 max-w-7xl mx-auto w-full">
+        {loading ? (
+          <ContentLoader message="Loading matches…" />
+        ) : (
+          <>
+
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
@@ -162,6 +163,8 @@ const MatchesPage: React.FC = () => {
               </div>
             ))}
           </div>
+        )}
+          </>
         )}
       </main>
 

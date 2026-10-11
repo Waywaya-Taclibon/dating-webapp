@@ -19,7 +19,7 @@ import { useSearchParams } from "react-router-dom";
 import { authGet, ServerWakingUpError } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { useToast } from "../lib/toast";
-import LoadingScreen from "../lib/LoadingScreen";
+import { ContentLoader } from "../lib/LoadingScreen";
 
 interface ChatUser {
   city: string;
@@ -247,7 +247,16 @@ const MessagePage: React.FC = () => {
   };
 
   if (loadingMatches) {
-    return <LoadingScreen message="Loading messages…" />;
+    return (
+      <div className="h-screen bg-neutral-50">
+        <div className="fixed top-0 left-0 right-0 z-50">
+          <Navbar disabled />
+        </div>
+        <div className="h-full pt-16 overflow-hidden flex items-center justify-center">
+          <ContentLoader message="Loading messages…" />
+        </div>
+      </div>
+    );
   }
 
   return (
