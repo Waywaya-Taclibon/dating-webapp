@@ -3,6 +3,7 @@ import Navbar from "./Navbar";
 import { useState, useEffect } from "react";
 import { authFetch } from "../lib/api";
 import { useToast } from "../lib/toast";
+import LoadingScreen from "../lib/LoadingScreen";
 
 const Profile = () => {
   const { user, isLoaded } = useUser();
@@ -106,11 +107,7 @@ const Profile = () => {
   };
 
   if (!isLoaded) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-gray-500">
-        Loading profile...
-      </div>
-    );
+    return <LoadingScreen message="Loading profile…" />;
   }
 
   return (

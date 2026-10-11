@@ -5,6 +5,7 @@ import { useUser, useAuth } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
 import { authFetch, authGet, ServerWakingUpError } from "../lib/api";
 import { useToast } from "../lib/toast";
+import LoadingScreen from "../lib/LoadingScreen";
 
 interface Match {
   clerkId: string;
@@ -73,11 +74,7 @@ const MatchesPage: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen text-gray-500">
-        Loading matches...
-      </div>
-    );
+    return <LoadingScreen message="Loading matches…" />;
   }
 
   return (

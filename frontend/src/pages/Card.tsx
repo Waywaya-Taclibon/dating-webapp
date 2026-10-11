@@ -5,6 +5,7 @@ import { useUser, useAuth } from "@clerk/clerk-react";
 import { authFetch, authGet, ServerWakingUpError } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { useToast } from "../lib/toast";
+import LoadingScreen from "../lib/LoadingScreen";
 
 
 interface CardData {
@@ -29,12 +30,16 @@ const SwipeCards = () => {
   const { getToken } = useAuth();
   const toast = useToast();
   const [cards, setCards] = useState<CardData[]>([]);
+  const [loading, setLoading] = useState(true);
   const swipeDirection = useRef<"left" | "right" | null>(null);
 
   // 🧠 Fetch users from backend
   useEffect(() => {
     const fetchUsers = async () => {
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
       try {
         const data = await authGet<CardData[]>(getToken, `/api/discover/${user.id}`);
         setCards(Array.isArray(data) ? data : []);
@@ -43,6 +48,8 @@ const SwipeCards = () => {
         if (err instanceof ServerWakingUpError) {
           toast.info("Server is waking up — give it a moment, then refresh.");
         }
+      } finally {
+        setLoading(false);
       }
     };
     fetchUsers();
@@ -59,6 +66,10 @@ const SwipeCards = () => {
         Please log in to view users.
       </div>
     );
+  }
+
+  if (loading) {
+    return <LoadingScreen message="Finding people…" fullScreen={false} />;
   }
 
   return (

@@ -16,8 +16,10 @@ import "@chatscope/chat-ui-kit-styles/dist/default/styles.min.css";
 import Navbar from "./Navbar";
 import { useUser, useAuth } from "@clerk/clerk-react";
 import { useSearchParams } from "react-router-dom";
-import { authGet } from "../lib/api";
+import { authGet, ServerWakingUpError } from "../lib/api";
 import { getSocket } from "../lib/socket";
+import { useToast } from "../lib/toast";
+import LoadingScreen from "../lib/LoadingScreen";
 
 interface ChatUser {
   city: string;
@@ -40,8 +42,10 @@ interface MessageData {
 const MessagePage: React.FC = () => {
   const { user } = useUser();
   const { getToken } = useAuth();
+  const toast = useToast();
   const currentUserId = user?.id;
   const [matches, setMatches] = useState<ChatUser[]>([]);
+  const [loadingMatches, setLoadingMatches] = useState(true);
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
   const [messages, setMessages] = useState<MessageModel[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -111,7 +115,10 @@ const MessagePage: React.FC = () => {
   // ✅ Fetch matches + their last messages (honors ?chat=<clerkId> deep-link)
   useEffect(() => {
     const fetchMatchesWithLastMessages = async () => {
-      if (!currentUserId) return;
+      if (!currentUserId) {
+        setLoadingMatches(false);
+        return;
+      }
       try {
         const data = await authGet<ChatUser[]>(getToken, `/api/matches/with-last/${currentUserId}`);
 
@@ -142,6 +149,11 @@ const MessagePage: React.FC = () => {
         }
       } catch (error) {
         console.error("Error fetching matches:", error);
+        if (error instanceof ServerWakingUpError) {
+          toast.info("Server is waking up — give it a moment, then refresh.");
+        }
+      } finally {
+        setLoadingMatches(false);
       }
     };
 
@@ -233,6 +245,10 @@ const MessagePage: React.FC = () => {
       );
     });
   };
+
+  if (loadingMatches) {
+    return <LoadingScreen message="Loading messages…" />;
+  }
 
   return (
     <div className="h-screen bg-neutral-50">

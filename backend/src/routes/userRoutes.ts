@@ -2,6 +2,7 @@ import express from "express";
 import UserInfo from "../models/UserInfo";
 import Message from "../models/Message";
 import Notification from "../models/Notification";
+import { clerkClient } from "@clerk/clerk-sdk-node";
 import { enforceSelf, getAuthId } from "../middleware/requireAuth";
 import { getClerkProfiles } from "../lib/clerkUsers";
 
@@ -60,6 +61,17 @@ router.post("/info", async (req, res) => {
       bio: String(bio).slice(0, 1000),
     });
     await newUser.save();
+
+    // Stamp Clerk metadata so Auth (/) routes returning users straight to
+    // /dashboard instead of detouring through /info on every login.
+    // Non-fatal: profile creation already succeeded if this fails.
+    try {
+      await clerkClient.users.updateUserMetadata(clerkId, {
+        publicMetadata: { infoCompleted: true },
+      });
+    } catch (err) {
+      console.error("⚠️ Failed to stamp infoCompleted metadata:", err);
+    }
 
     res.status(201).json({
       message: "Profile created successfully",

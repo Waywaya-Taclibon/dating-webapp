@@ -4,6 +4,7 @@ import { useUser, useAuth } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
 import { authFetch, authGet } from "../../lib/api";
 import { useToast } from "../../lib/toast";
+import LoadingScreen from "../../lib/LoadingScreen";
 
 interface FormData {
   age: string;
@@ -21,8 +22,11 @@ export default function ProfileCompletion(): JSX.Element {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  // Gate the form until we know whether a profile already exists —
+  // otherwise existing users see a split-second flash of this form.
+  const [checking, setChecking] = useState(true);
 
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   const { getToken } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
@@ -72,21 +76,31 @@ export default function ProfileCompletion(): JSX.Element {
     }
   };
 
-  // 🧠 Check if the user already has a profile
+  // 🧠 Check if the user already has a profile (before ever painting the form)
   useEffect(() => {
-    const checkExistingProfile = async () => {
-      if (!user) return;
+    if (!isLoaded) return;
+    let mounted = true;
 
+    if (!user) {
+      navigate("/", { replace: true });
+      return;
+    }
+
+    const checkExistingProfile = async () => {
       try {
         await authGet(getToken, `/api/info/${user.id}`);
-        navigate("/dashboard");
+        if (mounted) navigate("/dashboard", { replace: true });
       } catch {
-        // No profile yet — stay on completion page
+        // No profile yet — reveal the completion form
+        if (mounted) setChecking(false);
       }
     };
 
     checkExistingProfile();
-  }, [user, getToken, navigate]);
+    return () => {
+      mounted = false;
+    };
+  }, [user, isLoaded, getToken, navigate]);
 
   // 📸 Handle Clerk profile image upload
   const handleProfileImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -105,6 +119,12 @@ export default function ProfileCompletion(): JSX.Element {
       setIsUploadingImage(false);
     }
   };
+
+  // Never paint the form before the profile check resolves — kills the flash
+  // existing users used to see on login.
+  if (!isLoaded || checking) {
+    return <LoadingScreen message="Checking your profile…" />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-pink-50 to-white flex items-center justify-center p-4">

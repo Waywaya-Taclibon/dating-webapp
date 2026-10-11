@@ -1,6 +1,7 @@
 import type { JSX, ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useUser } from "@clerk/clerk-react";
+import LoadingScreen from "./LoadingScreen";
 
 /** Route guard — redirects signed-out users to /, shows loading while Clerk loads. */
 export default function RequireAuth({
@@ -11,11 +12,7 @@ export default function RequireAuth({
   const { user, isLoaded } = useUser();
 
   if (!isLoaded) {
-    return (
-      <div className="flex items-center justify-center h-screen text-gray-500">
-        Loading...
-      </div>
-    );
+    return <LoadingScreen message="Checking sign-in…" />;
   }
   if (!user) return <Navigate to="/" replace />;
   return <>{children}</>;

@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import "@chatscope/chat-ui-kit-styles/dist/default/styles.min.css";
 import RequireAuth from "./lib/RequireAuth";
 import { ToastProvider } from "./lib/toast";
+import LoadingScreen from "./lib/LoadingScreen";
 
 const Dashboard = lazy(() => import("./pages/dashboard"));
 const Auth = lazy(() => import("./pages/auth"));
@@ -19,13 +20,8 @@ function App() {
       {" "}
       <div className="app-container">
         <ToastProvider>
-          <Suspense
-            fallback={
-              <div className="flex items-center justify-center h-screen text-gray-500">
-                Loading...
-              </div>
-            }
-          >
+          <Suspense fallback={<LoadingScreen message="Loading…" />}>
+
             <Routes>
               <Route path="/" element={<Auth />} />
               <Route path="/info" element={<ProfileCompletion />} />

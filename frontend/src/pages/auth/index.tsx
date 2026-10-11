@@ -3,12 +3,12 @@ import {
   SignedOut,
   SignInButton,
   SignUpButton,
-  UserButton,
   useUser,
 } from "@clerk/clerk-react";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Heart, Sparkles, Users } from "lucide-react";
+import LoadingScreen from "../../lib/LoadingScreen";
 
 const Auth = () => {
   const { user, isLoaded } = useUser();
@@ -99,12 +99,7 @@ const Auth = () => {
       </SignedOut>
 
       <SignedIn>
-        <div className="bg-white shadow-lg rounded-xl p-8">
-          <div className="flex flex-col items-center space-y-4">
-            <UserButton afterSignOutUrl="/" />
-            <p className="text-gray-700">Redirecting...</p>
-          </div>
-        </div>
+        <LoadingScreen message="Redirecting…" />
       </SignedIn>
     </div>
   );
