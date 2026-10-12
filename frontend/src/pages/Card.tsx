@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
-import { X, Heart } from "lucide-react";
+import { X, Heart, RefreshCw } from "lucide-react";
 import { useUser, useAuth } from "@clerk/clerk-react";
 import { authFetch, authGet, ServerWakingUpError } from "../lib/api";
 import { getSocket } from "../lib/socket";
@@ -34,28 +34,34 @@ const SwipeCards = ({ onLoadingChange }: { onLoadingChange?: (loading: boolean) 
   const swipeDirection = useRef<"left" | "right" | null>(null);
 
   // 🧠 Fetch users from backend
-  useEffect(() => {
-    const fetchUsers = async () => {
-      if (!user) {
-        setLoading(false);
-        onLoadingChange?.(false);
-        return;
+  const fetchUsers = useCallback(async () => {
+    if (!user) {
+      setLoading(false);
+      onLoadingChange?.(false);
+      return;
+    }
+    try {
+      const data = await authGet<CardData[]>(getToken, `/api/discover/${user.id}`);
+      setCards(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Error fetching discoverable users:", err);
+      if (err instanceof ServerWakingUpError) {
+        toast.info("Server is waking up — give it a moment, then refresh.");
       }
-      try {
-        const data = await authGet<CardData[]>(getToken, `/api/discover/${user.id}`);
-        setCards(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error("Error fetching discoverable users:", err);
-        if (err instanceof ServerWakingUpError) {
-          toast.info("Server is waking up — give it a moment, then refresh.");
-        }
-      } finally {
-        setLoading(false);
-        onLoadingChange?.(false);
-      }
-    };
-    fetchUsers();
+    } finally {
+      setLoading(false);
+      onLoadingChange?.(false);
+    }
   }, [user, getToken, toast, onLoadingChange]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  const handleRefresh = () => {
+    setLoading(true);
+    fetchUsers();
+  };
 
   const handleSwipe = (direction: "left" | "right") => {
     swipeDirection.current = direction;
@@ -72,6 +78,31 @@ const SwipeCards = ({ onLoadingChange }: { onLoadingChange?: (loading: boolean) 
 
   if (loading) {
     return <ContentLoader message="Finding people…" />;
+  }
+
+  // Empty deck — no new users left to swipe (or none exist yet)
+  if (cards.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full w-full gap-4 px-6 text-center">
+        <div className="inline-flex items-center justify-center w-20 h-20 bg-pink-100 rounded-full mb-2">
+          <Heart className="w-10 h-10 text-pink-400" fill="currentColor" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-800">
+          You're all caught up! 💖
+        </h2>
+        <p className="text-gray-500 max-w-xs">
+          No new people to swipe on right now. Check back later, or invite
+          someone to join DopaWink!
+        </p>
+        <button
+          onClick={handleRefresh}
+          className="mt-2 inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-semibold rounded-full shadow-md hover:from-pink-600 hover:to-purple-600 transition-all"
+        >
+          <RefreshCw className="w-5 h-5" />
+          Check again
+        </button>
+      </div>
+    );
   }
 
   return (

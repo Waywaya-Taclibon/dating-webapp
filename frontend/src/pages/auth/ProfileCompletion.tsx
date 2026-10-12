@@ -4,6 +4,7 @@ import { useUser, useAuth } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
 import { authFetch, authGet } from "../../lib/api";
 import { useToast } from "../../lib/toast";
+import { useBoot } from "../../lib/boot";
 import LoadingScreen from "../../lib/LoadingScreen";
 
 interface FormData {
@@ -30,6 +31,7 @@ export default function ProfileCompletion(): JSX.Element {
   const { getToken } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
+  const { hold } = useBoot();
 
   const handleInputChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -76,7 +78,9 @@ export default function ProfileCompletion(): JSX.Element {
     }
   };
 
-  // 🧠 Check if the user already has a profile (before ever painting the form)
+  // 🧠 Check if the user already has a profile (before ever painting the form).
+  // Holds the global boot overlay so ONE continuous wave covers this check
+  // plus the /dashboard handoff, instead of mounting a second loader.
   useEffect(() => {
     if (!isLoaded) return;
     let mounted = true;
@@ -86,21 +90,27 @@ export default function ProfileCompletion(): JSX.Element {
       return;
     }
 
+    const release = hold("profile-check");
     const checkExistingProfile = async () => {
       try {
         await authGet(getToken, `/api/info/${user.id}`);
-        if (mounted) navigate("/dashboard", { replace: true });
+        if (!mounted) return;
+        release();
+        navigate("/dashboard", { replace: true });
       } catch {
-        // No profile yet — reveal the completion form
-        if (mounted) setChecking(false);
+        // No profile yet — settle boot and reveal the completion form
+        if (!mounted) return;
+        release();
+        setChecking(false);
       }
     };
 
     checkExistingProfile();
     return () => {
       mounted = false;
+      release();
     };
-  }, [user, isLoaded, getToken, navigate]);
+  }, [user, isLoaded, getToken, navigate, hold]);
 
   // 📸 Handle Clerk profile image upload
   const handleProfileImageChange = async (e: ChangeEvent<HTMLInputElement>) => {

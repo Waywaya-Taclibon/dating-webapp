@@ -1,14 +1,9 @@
-import {
-  SignedIn,
-  SignedOut,
-  SignInButton,
-  SignUpButton,
-  useUser,
-} from "@clerk/clerk-react";
+import { SignedIn, SignedOut, SignInButton, SignUpButton, useUser } from "@clerk/clerk-react";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Heart, Sparkles, Users } from "lucide-react";
 import LoadingScreen from "../../lib/LoadingScreen";
+import LandingNavbar from "./LandingNavbar";
+import { LandingFooter } from "./LandingSections";
 
 const Auth = () => {
   const { user, isLoaded } = useUser();
@@ -29,73 +24,44 @@ const Auth = () => {
   }, [user, isLoaded, navigate]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-pink-50 to-white px-4">
+    <div className="relative h-screen overflow-hidden flex flex-col bg-[#fe77ef]">
+      {/* Doodle backdrop fused into the brand pink:
+          multiply turns the white paper pink while the line-art stays dark,
+          then a pink wash keeps the hero text readable. */}
+      <div aria-hidden="true" className="absolute inset-0">
+        <img
+          src={`${import.meta.env.BASE_URL}loginpage/doodle.jpg`}
+          alt=""
+          className="h-full w-full object-cover mix-blend-multiply opacity-50"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#fe77ef]/70 via-[#fe77ef]/50 to-[#fe77ef]/70" />
+      </div>
       <SignedOut>
-        {/* Logo/Brand Section */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full mb-4 shadow-lg">
-            <Heart className="w-10 h-10 text-white" fill="white" />
-          </div>
-          <h1 className="text-6xl font-bold mb-2">
-            <span className="text-gray-800">Dopa</span>
-            <span className="bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">Wink</span>
+        <LandingNavbar />
+        {/* Hero — fills remaining viewport; gif + headline untouched */}
+        <section className="relative flex flex-col items-center justify-top flex-1 min-h-0 px-4 pt-15 gap-4">
+          <img
+            src={`${import.meta.env.BASE_URL}loginpage/winkers.gif`}
+            alt="DopaWink winking"
+            className="w-150 h-80 max-w-[70vw] max-h-[50vh] object-contain"
+          />
+          <h1 className="mt-6 text-center text-5xl sm:text-6xl md:text-7xl font-extrabold text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.25)] px-4">
+            All it takes is a wink.
           </h1>
-          <p className="text-gray-500 text-lg">
-            Sign in to continue your journey
-          </p>
-        </div>
-
-        {/* Main Card */}
-        <div className="bg-white shadow-lg rounded-xl p-8 w-full max-w-md">
-          {/* Feature Highlights */}
-          <div className="space-y-4 mb-8">
-            <div className="flex items-center space-x-3">
-              <div className="bg-pink-100 p-2 rounded-lg">
-                <Sparkles className="w-5 h-5 text-pink-500" />
-              </div>
-              <span className="text-gray-700">Personalized experience</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="bg-pink-100 p-2 rounded-lg">
-                <Users className="w-5 h-5 text-pink-500" />
-              </div>
-              <span className="text-gray-700">Connect with others</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="bg-pink-100 p-2 rounded-lg">
-                <Heart className="w-5 h-5 text-pink-500" />
-              </div>
-              <span className="text-gray-700">Safe and secure</span>
-            </div>
-          </div>
-
-          {/* Buttons */}
-          <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-center gap-4 pt-20">
             <SignUpButton mode="modal">
-              <button className="w-full py-4 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white font-semibold rounded-lg shadow-lg transition-all transform hover:scale-[1.02]">
+              <button className="px-8 py-3 bg-white text-pink-600 text-base font-bold rounded-full shadow-xl hover:bg-pink-50 hover:scale-105 transition-all">
                 Create Account
               </button>
             </SignUpButton>
-
             <SignInButton mode="modal">
-              <button className="w-full py-4 bg-white border-2 border-pink-500 text-pink-500 hover:bg-pink-50 font-semibold rounded-lg transition-all">
+              <button className="px-8 py-3 bg-transparent border-2 border-white text-white text-base font-bold rounded-full hover:bg-white/10 hover:scale-105 transition-all">
                 Sign In
               </button>
             </SignInButton>
           </div>
-
-          {/* Terms */}
-          <p className="text-xs text-gray-500 text-center mt-6">
-            By continuing, you agree to our Terms of Service and Privacy Policy
-          </p>
-        </div>
-
-        {/* Bottom Decoration */}
-        <div className="mt-8 flex space-x-2">
-          <div className="w-2 h-2 rounded-full bg-pink-300 animate-pulse"></div>
-          <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse delay-75"></div>
-          <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse delay-150"></div>
-        </div>
+        </section>
+        <LandingFooter />
       </SignedOut>
 
       <SignedIn>

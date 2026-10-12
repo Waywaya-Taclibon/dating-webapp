@@ -6,6 +6,11 @@
   padding: 5px;
   background: #fff;
   filter: blur(4px) contrast(12);
+  /* Keep the per-frame filter work on the GPU so the wave runs in one
+     smooth motion instead of janking on CPU repaints. Look unchanged. */
+  transform: translateZ(0);
+  will-change: filter;
+  contain: layout paint;
 }
 .dw-loader:before,
 .dw-loader:after {
@@ -21,6 +26,7 @@
   background-repeat: repeat-x;
   clip-path: inset(0 100% 0 0);
   animation: dw-wave 1.5s infinite linear;
+  will-change: clip-path;
 }
 .dw-loader:after {
   scale: -1 1;
@@ -40,5 +46,43 @@
   .dw-loader:after {
     animation: none;
     clip-path: inset(0);
+  }
+}
+
+/* DopaWink blink animation (landing hero gif). */
+.dw-blink {
+  animation: dw-blink 1.4s ease-in-out infinite;
+}
+@keyframes dw-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dw-blink {
+    animation: none;
+  }
+}
+
+/* DopaWink marquee ribbon (landing page). Duplicate content 2x for a seamless loop. */
+.dw-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: dw-marquee 22s linear infinite;
+}
+@keyframes dw-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dw-marquee-track {
+    animation: none;
   }
 }

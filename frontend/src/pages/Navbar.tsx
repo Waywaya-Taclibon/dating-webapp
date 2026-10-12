@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Menu, X, Bell } from "lucide-react";
 import { SignedIn, UserButton, useUser, useAuth } from "@clerk/clerk-react";
 import NotificationModal from "./NotificationModal";
@@ -100,22 +101,22 @@ export default function Navbar({ disabled = false }: { disabled?: boolean }) {
           <div className="flex justify-between items-center h-16">
             {/* Logo/Title */}
             <div className="flex-shrink-0">
-              <a href="/dashboard" className="text-2xl font-bold text-gray-800">
+              <Link to="/dashboard" className="text-2xl font-bold text-gray-800">
                 Dopa
                 <span className="text-pink-500">Wink</span>
-              </a>
+              </Link>
             </div>
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex space-x-8 items-center">
               {navItems.map((item) => (
-                <a
+                <Link
                   key={item.name}
-                  href={item.href}
+                  to={item.href}
                   className="text-gray-700 hover:text-pink-500 px-3 py-2 text-sm font-medium transition-colors duration-200"
                 >
                   {item.name}
-                </a>
+                </Link>
               ))}
 
               {/* Notification Bell */}
@@ -180,14 +181,14 @@ export default function Navbar({ disabled = false }: { disabled?: boolean }) {
         >
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-gradient-to-b from-pink-50 to-white">
             {navItems.map((item) => (
-              <a
+              <Link
                 key={item.name}
-                href={item.href}
+                to={item.href}
                 className="text-gray-700 hover:text-pink-500 hover:bg-pink-50 block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200"
                 onClick={() => setIsOpen(false)}
               >
                 {item.name}
-              </a>
+              </Link>
             ))}
           </div>
         </div>

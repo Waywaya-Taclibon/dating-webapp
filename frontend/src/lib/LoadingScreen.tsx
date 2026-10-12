@@ -47,6 +47,9 @@ export function ContentLoader({
       aria-live="polite"
       className="flex flex-col items-center justify-center h-full w-full py-10"
     >
+      <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full mb-5 shadow-md">
+        <Heart className="w-6 h-6 text-white" fill="white" />
+      </div>
       <Wave />
       <p className="text-gray-500 mt-6">{message}</p>
     </div>
